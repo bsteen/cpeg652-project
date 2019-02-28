@@ -60,7 +60,7 @@ int nsteps;          /* number of time steps */
 int period;          /* number of times steps beween movie frames */
 FILE *gif;           /* file containing animated GIF */
 gdImagePtr im,       /* pointers to consecutive GIF images */
-  previm;
+  previm;  
 int *colors;         /* colors we will use */
 Body *bodies,        /* two copies of main data structure: list of bodies */
   *bodies_new;
@@ -104,39 +104,35 @@ void init(char* infilename, char* outfilename) {
 
   assert(infile);
   fscanf(infile, "%lf", &x_min);
+  printf("x_min = %lf\n", x_min);
   fscanf(infile, "%lf", &x_max);
+  printf("x_max = %lf\n", x_max);
   assert(x_max > x_min);
   univ_x = x_max-x_min;
   fscanf(infile, "%lf", &y_min);
+  printf("y_min = %lf\n", y_min);
   fscanf(infile, "%lf", &y_max);
+  printf("y_max = %lf\n", y_max);
   assert(y_max > y_min);
   univ_y = y_max-y_min;
   fscanf(infile, "%d", &nx);
+  printf("nx = %d\n", nx);
   assert(nx>=10);
   fscanf(infile, "%d", &ny);
+  printf("ny = %d\n", ny);
   assert(ny>=10);
   fscanf(infile, "%lf", &K);
+  printf("K = %f\n", K);
   assert(K>0);
   fscanf(infile, "%d", &nsteps);
+  printf("nsteps = %d\n", nsteps);
   assert(nsteps>=1);
   fscanf(infile, "%d", &period);
+  printf("period = %d\n", period);
   assert(period>0);
   fscanf(infile, "%d", &numBodies);
-  assert(numBodies>0);
-
-  #ifndef TIMING
-  printf("x_min = %lf\n", x_min);
-  printf("x_max = %lf\n", x_max);
-  printf("y_max = %lf\n", y_max);
-  printf("y_min = %lf\n", y_min);
-  printf("nx = %d\n", nx);
-  printf("ny = %d\n", ny);
-  printf("K = %f\n", K);
-  printf("nsteps = %d\n", nsteps);
-  printf("period = %d\n", period);
   printf("numBodies = %d\n", numBodies);
-  #endif
-
+  assert(numBodies>0);
   bodies = (Body*)my_malloc(numBodies*sizeof(Body));
   bodies_new = (Body*)my_malloc(numBodies*sizeof(Body));
   for (i=0; i<numBodies; i++) {
@@ -181,12 +177,12 @@ void write_plain(int time) {
 /* Write one frame of the GIF for given time */
 void write_frame(int time) {
   int i;
-
+  
   im = gdImageCreate(nx,ny);
   if (time == 0) {
     gdImageColorAllocate(im, 0, 0, 0);  /* black background */
     for (i=0; i<MAXCOLORS; i++)
-      colors[i] = gdImageColorAllocate (im, i, 0, MAXCOLORS-i-1);
+      colors[i] = gdImageColorAllocate (im, i, 0, MAXCOLORS-i-1); 
     /* (im, i,i,i); gives gray-scale image */
     gdImageGifAnimBegin(im, gif, 1, -1);
   } else {
@@ -341,8 +337,8 @@ void randinit(char *outfilename) {
  * case random initialization is used. */
 int main(int argc, char* argv[]) {
   int i;
-  clock_t t1;
   clock_t t0 = clock();
+  clock_t t1;
 
   if (argc == 2) {
     randinit(argv[1]);
@@ -368,11 +364,8 @@ int main(int argc, char* argv[]) {
   }
   wrapup();
   t1 = clock()-t0;
-  printf("Total time (seconds) for sequential: %f\n", 1.0*t1/CLOCKS_PER_SEC);
-  #ifndef TIMING
+  printf("Total time (seconds): %f\n", 1.0*t1/CLOCKS_PER_SEC);
   printf("Total memory allocated (bytes): %d\n", byteCount);
-  #endif
-
-  fflush(stdout);
+  fflush(stdout);	 
   return 0;
 }

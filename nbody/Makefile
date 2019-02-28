@@ -1,107 +1,166 @@
-# Benjamin Steenkamer
-# CISC 372-010
-# Homework 6 - Makefile
-# 11/11/16
-# ssh bsteen@hoek.eecis.udel.edu
-# ssh bsteen@cisc372.cis.udel.edu
-# svn list svn://cisc372.cis.udel.edu/bsteen -R
-
+# typical linux/SLURM setup:                                                                    
+RUN = srun
+FLAGS =
 LIBS = -lgd -lm
-P_LIBS = -pthread -lrt
-CC = gcc -std=c11
-NUM_THREADS = 4
+MPICC = mpicc
 
-default: timing
+# on a Mac:
+#RUN = mpiexec
+#FLAGS = -I/opt/local/include -L/opt/local/lib
+#LIBS = -lgd
+#MPICC = mpicc
 
-###################MAKE TEST#####################
-generate-test: compile_test
-	./make_test.out
+all: nbody_seq nbody_par nbody_bad
 
-compile_test: make_test.c
-	$(CC) -o make_test.out make_test.c $(LIBS)
-################################################
+seq: nbodyr.gif nbody1.gif nbody2.gif nbody3.gif
 
-#####################COMPILE#####################
-compile-nbody_seq: nbody_seq.c
-	$(CC) -o nbody_seq.out nbody_seq.c $(LIBS)
-
-compile-nbody_pthread: nbody_pthread.c
-	$(CC) -o nbody_pthread.out nbody_pthread.c $(LIBS) $(P_LIBS)
-################################################
-
-####################SEQ TEST#####################
-seq-nbodyr: compile-nbody_seq
-	./nbody_seq.out nbodyr.gif
-
-seq-nbody1: compile-nbody_seq config1.txt
-	./nbody_seq.out config1.txt s-nbody1.gif
-
-seq-nbody2: compile-nbody_seq config2.txt
-	./nbody_seq.out config2.txt s-nbody2.gif
-
-seq-nbody3: compile-nbody_seq config3.txt
-	./nbody_seq.out config3.txt s-nbody3.gif
-
-seq-nbodybig: compile-nbody_seq bigtest1.txt
-	./nbody_seq.out bigtest1.txt s-nbodybig.gif
-################################################
-
-################PTHREAD TEST####################
-p-nbodyr: compile-nbody_pthread
-	./nbody_pthread.out p-nbodyr.gif $(NUM_THREADS)
-
-p-nbody1: compile-nbody_pthread config1.txt
-	./nbody_pthread.out config1.txt p-nbody1.gif $(NUM_THREADS)
-
-p-nbody2: compile-nbody_pthread config2.txt
-	./nbody_pthread.out config2.txt p-nbody2.gif $(NUM_THREADS)
-
-p-nbody3: compile-nbody_pthread config3.txt
-	./nbody_pthread.out config3.txt p-nbody3.gif $(NUM_THREADS)
-
-p-nbodybig: compile-nbody_pthread bigtest1.txt
-	./nbody_pthread.out bigtest1.txt p-nbodybig.gif $(NUM_THREADS)
-################################################
-
-####################COMPARE#####################
-cmp-nbody1: seq-nbody1 p-nbody1
-	diff s-nbody1.gif p-nbody1.gif
-
-cmp-nbody2: seq-nbody2 p-nbody2
-	diff s-nbody2.gif p-nbody2.gif
-
-cmp-nbody3: seq-nbody3 p-nbody3
-	diff s-nbody3.gif p-nbody3.gif
-################################################
-
-##################OPEN GIF######################
-sgif1: s-nbody1.gif
-	xdg-open s-nbody1.gif
-pgif1: p-nbody1.gif
-	xdg-open p-nbody1.gif
-################################################
-
-####################TIMING######################
-timing: nbody_seq.c nbody_pthread.c
-	$(CC) -o make_test.out make_test.c $(LIBS) -DTIMING
-	$(CC) -o nbody_seq.out nbody_seq.c $(LIBS) -DTIMING
-	$(CC) -o nbody_pthread.out  nbody_pthread.c $(LIBS) $(P_LIBS) -DTIMING
-	srun -c 1 ./make_test.out
-
-	srun -c 1 ./nbody_seq.out bigtest1.txt s-nbodybig.gif
-	srun -c 1 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 1
-	srun -c 2 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 2
-	srun -c 4 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 4
-	srun -c 8 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 8
-	srun -c 12 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 12
-	srun -c 14 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 14
-	srun -c 16 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 16
-	srun -c 20 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 20
-	srun -c 24 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 24
-	srun -c 28 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 28
-	srun -c 32 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 32
-	srun -c 40 ./nbody_pthread.out bigtest1.txt p-nbodybig.gif 40
-################################################
+test: ptest1 ptest2 ptest3
 
 clean:
-	rm -f *.out *.o *.gif
+	rm -f *~ nbody_seq nbody_par nbody_bad *.gif make_test bigtest1.txt
+
+############################# SEQUENTIAL VERSION ############################
+
+nbodyr.gif: nbody_seq
+	$(RUN) -n 1 ./nbody_seq nbodyr.gif
+
+nbody1.gif: nbody_seq config1.txt
+	$(RUN) -n 1 ./nbody_seq config1.txt nbody1.gif
+
+nbody2.gif: nbody_seq config2.txt
+	$(RUN) -n 1 ./nbody_seq config2.txt nbody2.gif
+
+nbody3.gif: nbody_seq config3.txt
+	$(RUN) -n 1 ./nbody_seq config3.txt nbody3.gif
+
+big.gif: nbody_seq bigtest1.txt
+	$(RUN) -n 1 ./nbody_seq bigtest1.txt big.gif
+
+bigtest1.txt: make_test
+	./make_test
+
+nbody_seq: nbody_seq.c Makefile
+	$(MPICC) -o nbody_seq $(FLAGS) nbody_seq.c $(LIBS)
+
+make_test: make_test.c
+	$(MPICC) -o make_test $(FLAGS) make_test.c $(LIBS)
+
+############################### PARALLEL VERSION ##############################
+
+pnbody1_1.gif: nbody_par config1.txt
+	$(RUN) -n 1 ./nbody_par config1.txt pnbody1_1.gif
+
+pnbody1_2.gif: nbody_par
+	$(RUN) -n 2 ./nbody_par config1.txt pnbody1_2.gif
+
+pnbody1_3.gif: nbody_par
+	$(RUN) -n 3 ./nbody_par config1.txt pnbody1_3.gif
+
+pnbody2_1.gif: nbody_par config2.txt
+	$(RUN) -n 1 ./nbody_par config2.txt pnbody2_1.gif
+
+pnbody2_2.gif: nbody_par config2.txt
+	$(RUN) -n 2 ./nbody_par config2.txt pnbody2_2.gif
+
+pnbody2_3.gif: nbody_par config2.txt
+	$(RUN) -n 3 ./nbody_par config2.txt pnbody2_3.gif
+
+pnbody3_1.gif: nbody_par config3.txt
+	$(RUN) -n 1 ./nbody_par config3.txt pnbody3_1.gif
+
+pnbody3_2.gif: nbody_par config3.txt
+	$(RUN) -n 2 ./nbody_par config3.txt pnbody3_2.gif
+
+pnbody3_3.gif: nbody_par config3.txt
+	$(RUN) -n 3 ./nbody_par config3.txt pnbody3_3.gif
+
+pbig.gif: nbody_par bigtest1.txt
+	$(RUN) -n 36 ./nbody_par bigtest1.txt pbig.gif
+
+experiment: nbody_par bigtest1.txt
+	$(RUN) -n 1 ./nbody_par bigtest1.txt bbig.gif
+	$(RUN) -n 2 ./nbody_par bigtest1.txt bbig.gif
+	$(RUN) -n 4 ./nbody_par bigtest1.txt bbig.gif
+	$(RUN) -n 8 ./nbody_par bigtest1.txt bbig.gif
+	$(RUN) -n 16 ./nbody_par bigtest1.txt bbig.gif
+	$(RUN) -n 32 ./nbody_par bigtest1.txt bbig.gif
+	$(RUN) -n 64 ./nbody_par bigtest1.txt bbig.gif
+	$(RUN) -n 72 ./nbody_par bigtest1.txt bbig.gif
+
+
+nbody_par: nbody_par.c Makefile
+	$(MPICC) -o nbody_par $(FLAGS) nbody_par.c $(LIBS)
+
+################################## BAD VERSION ###############################
+
+bnbody1_1.gif: nbody_bad config1.txt
+	$(RUN) -n 1 ./nbody_bad config1.txt bnbody1_1.gif
+
+bnbody1_2.gif: nbody_bad
+	$(RUN) -n 2 ./nbody_bad config1.txt bnbody1_2.gif
+
+bnbody1_3.gif: nbody_bad
+	$(RUN) -n 3 ./nbody_bad config1.txt bnbody1_3.gif
+
+bnbody2_1.gif: nbody_bad config2.txt
+	$(RUN) -n 1 ./nbody_bad config2.txt bnbody2_1.gif
+
+bnbody2_2.gif: nbody_bad config2.txt
+	$(RUN) -n 2 ./nbody_bad config2.txt bnbody2_2.gif
+
+bnbody2_3.gif: nbody_bad config2.txt
+	$(RUN) -n 3 ./nbody_bad config2.txt bnbody2_3.gif
+
+bnbody3_1.gif: nbody_bad config3.txt
+	$(RUN) -n 1 ./nbody_bad config3.txt bnbody3_1.gif
+
+bnbody3_2.gif: nbody_bad config3.txt
+	$(RUN) -n 2 ./nbody_bad config3.txt bnbody3_2.gif
+
+bnbody3_3.gif: nbody_bad config3.txt
+	$(RUN) -n 3 ./nbody_bad config3.txt bnbody3_3.gif
+
+bbig.gif: nbody_bad bigtest1.txt
+	$(RUN) -n 36 ./nbody_bad bigtest1.txt bbig.gif
+
+nbody_bad: nbody_bad.c Makefile
+	$(MPICC) -o nbody_bad $(FLAGS) nbody_bad.c $(LIBS)
+
+#################################### TESTS ################################
+
+ptest1: ptest1_1 ptest1_2 ptest1_3
+
+ptest2: ptest2_1 ptest2_2 ptest2_3
+
+ptest3: ptest3_1 ptest3_2 ptest3_3
+
+
+ptest1_1: nbody1.gif pnbody1_1.gif
+	diff nbody1.gif pnbody1_1.gif
+
+ptest1_2: nbody1.gif pnbody1_2.gif
+	diff nbody1.gif pnbody1_2.gif
+
+ptest1_3: nbody1.gif pnbody1_3.gif
+	diff nbody1.gif pnbody1_3.gif
+
+
+ptest2_1: nbody2.gif pnbody2_1.gif
+	diff nbody2.gif pnbody2_1.gif
+
+ptest2_2: nbody2.gif pnbody2_2.gif
+	diff nbody2.gif pnbody2_2.gif
+
+ptest2_3: nbody2.gif pnbody2_3.gif
+	diff nbody2.gif pnbody2_3.gif
+
+
+ptest3_1: nbody3.gif pnbody3_1.gif
+	diff nbody3.gif pnbody3_1.gif
+
+ptest3_2: nbody3.gif pnbody3_2.gif
+	diff nbody3.gif pnbody3_2.gif
+
+ptest3_3: nbody3.gif pnbody3_3.gif
+	diff nbody3.gif pnbody3_3.gif
+

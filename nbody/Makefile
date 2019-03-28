@@ -1,7 +1,10 @@
-# Requirements to compile:
-# gcc, Opem MPI (or mpich), OpenMP
 # Benjamin Steenkamer, 2019
 # CPEG 652
+
+# Requirements for project:
+# sudo apt install gcc
+# sudo apt install openmpi-bin libopenmpi-dev
+# sudo apt install libomp-dev
 
 MPICC = mpicc
 CC = gcc

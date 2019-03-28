@@ -70,3 +70,8 @@ nbody_mpi_3_3.gif: nbody_mpi config3.txt
 
 nbody_mpi: nbody_mpi.c Makefile
 	$(MPICC) -o nbody_mpi $(FLAGS) nbody_mpi.c $(LIBS)
+	
+############################# OMP VERSION ######################################
+
+nbody_omp: nbody_omp.c
+	$(CC) nbody_omp.c -o nbody_omp $(FLAGS) $(LIBS)

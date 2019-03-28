@@ -1,5 +1,7 @@
 # Requirements to compile:
 # gcc, Opem MPI (or mpich), OpenMP
+# Benjamin Steenkamer, 2019
+# CPEG 652
 
 MPICC = mpicc
 CC = gcc
@@ -16,7 +18,7 @@ clean:
 
 test_maker: test_maker.c
 	$(CC) test_maker.c -o test_maker $(FLAGS) -lm
-	
+
 ############################ SEQUENTIAL VERSION ################################
 
 nbodyr.gif: nbody_seq random.txt
@@ -32,7 +34,7 @@ nbody3.gif: nbody_seq config3.txt
 	./nbody_seq config3.txt nbody3.gif
 
 nbody_seq: nbody_seq.c
-	$(CC) nbody_seq.c -o nbody_seq $(FLAGS)  $(LIBS)
+	$(CC) nbody_seq.c -o nbody_seq $(FLAGS) $(LIBS)
 
 ############################# MPI VERSION ######################################
 

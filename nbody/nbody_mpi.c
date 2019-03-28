@@ -20,8 +20,10 @@
  * 02110-1301 USA.
  */
 
-// Name: nbody_seq.c: sequential 2-d nbody simulation
-// Edits done by: Benjamin Steenkamer, 2019
+// nbody_mpi.c: Parallel 2-d nbody simulation using MPI
+// Original program by authors listed above
+// Changes and additions done by: Benjamin Steenkamer, 2019
+// CPEG 652 Semester Project
 
 #include <stdlib.h>
 #include <stdio.h>

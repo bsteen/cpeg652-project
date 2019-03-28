@@ -1,8 +1,3 @@
-// Benjamin Steenkamer
-// CISC 372-010
-// Homework 6 - nobody_pthread.c
-// 11/10/16
-
 /* FEVS: A Functional Equivalence Verification Suite for High-Performance
  * Scientific Computing
  *
@@ -24,7 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301 USA.
  */
-/* Name: nbody_pthread.c: multithread 2-d nbody simulation*/
+
+// nbody_pthread.c: Parallel 2-d nbody simulation using POSIX Threads
+// Original program by authors listed above
+// Changes and additions done by: Benjamin Steenkamer, 2019
+// CPEG 652 Semester Project 
+
 #define _POSIX_C_SOURCE 199309L //Needed this define for timing functions
 #include <assert.h>
 #include "gd.h"

@@ -1,18 +1,17 @@
 # Benjamin Steenkamer, 2019
-# CPEG 652
+# CPEG 652 Semester Project
 
 # Requirements for project:
 # sudo apt install gcc
 # sudo apt install openmpi-bin libopenmpi-dev
 # sudo apt install libomp-dev
 
-MPICC = mpicc
 CC = gcc
+MPICC = mpicc
 RUN = mpirun -np
 FLAGS = -O4 -Wall
 LIBS = -lgd -lm
-
-make_all: test_maker nbody_seq nbody_mpi nbody_omp
+P_LIBS = -pthread -lrt
 
 clean:
 	rm -f test_maker nbody_seq nbody_mpi nbody_omp *.gif
@@ -38,6 +37,16 @@ nbody3.gif: nbody_seq config3.txt
 
 nbody_seq: nbody_seq.c
 	$(CC) nbody_seq.c -o nbody_seq $(FLAGS) $(LIBS)
+	
+########################### PTHREAD VERSION ####################################
+
+nbody_pthread: nbody_pthread.c
+	$(CC) nbody_pthread.c -o nbody_pthread $(FLAGS) $(LIBS) $(P_LIBS)
+	
+############################# OMP VERSION ######################################
+
+nbody_omp: nbody_omp.c
+	$(CC) nbody_omp.c -o nbody_omp $(FLAGS) $(LIBS)
 
 ############################# MPI VERSION ######################################
 
@@ -70,8 +79,3 @@ nbody_mpi_3_3.gif: nbody_mpi config3.txt
 
 nbody_mpi: nbody_mpi.c Makefile
 	$(MPICC) -o nbody_mpi $(FLAGS) nbody_mpi.c $(LIBS)
-	
-############################# OMP VERSION ######################################
-
-nbody_omp: nbody_omp.c
-	$(CC) nbody_omp.c -o nbody_omp $(FLAGS) $(LIBS)

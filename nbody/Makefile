@@ -4,7 +4,7 @@
 MPICC = mpicc
 CC = gcc
 RUN = mpirun -np
-FLAGS = -O4
+FLAGS = -O4 -Wall
 LIBS = -lgd -lm
 
 make_all: test_maker nbody_seq nbody_mpi nbody_omp
@@ -15,7 +15,7 @@ clean:
 ############################## RANDOM TEST GEN #################################
 
 test_maker: test_maker.c
-	$(CC) test_maker.c -o test_maker $(FLAGS)
+	$(CC) test_maker.c -o test_maker $(FLAGS) -lm
 	
 ############################ SEQUENTIAL VERSION ################################
 

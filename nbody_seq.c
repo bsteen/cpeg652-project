@@ -30,7 +30,7 @@
 #include <assert.h>
 #include <math.h>
 #include <time.h>
-#include "gd.h"
+#include <gd.h>
 #define MAXCOLORS 254
 #define PWIDTH 1
 
@@ -38,56 +38,39 @@
  * simulation.	All of the attributes and the current state of the
  * body are recorded in this structure. */
 typedef struct BodyStruct {
-	double mass;	   /* mass of body */
-	int color;	   		/* color used to draw this body */
-	int size;		   /* diameter of body in pixels */
-	double x;		   /* x position */
-	double y;		   /* y position */
-	double vx;	   /* velocity, x-direction */
-	double vy;	   /* velocity, y-direction */
+	double mass;	/* mass of body */
+	int color;	   	/* color used to draw this body */
+	int size;		/* diameter of body in pixels */
+	double x;		/* x position */
+	double y;		/* y position */
+	double vx;		/* velocity, x-direction */
+	double vy;		/* velocity, y-direction */
 } Body;
 
 /* Global variables */
-double x_min;		 /* coord of left edge of universe */
-double x_max;		 /* coord of right edge of universe */
-double y_min;		 /* coord of bottom edge of universe */
-double y_max;		 /* coord of top edge of universe */
-double univ_x;		 /* x_max-x_min */
-double univ_y;		 /* y_max-y_min */
-int nx;				 /* width of movie window (pixels) */
-int ny;				 /* height of movie window (pixels) */
-int numBodies;		 /* number of bodies */
-double K;			 /* single constant encoding G, grid spacing, etc. */
-int nsteps;			 /* number of time steps */
-int period;			 /* number of times steps beween movie frames */
-FILE *gif;			 /* file containing animated GIF */
-gdImagePtr im,  previm;		 /* pointers to consecutive GIF images */
-int *colors;		 /* colors we will use */
-Body *bodies, *bodies_new;		 /* two copies of main data structure: list of bodies */
-int byteCount = 0;
+double x_min;				/* coord of left edge of universe */
+double x_max;				/* coord of right edge of universe */
+double y_min;				/* coord of bottom edge of universe */
+double y_max;				/* coord of top edge of universe */
+double univ_x;				/* x_max-x_min */
+double univ_y;				/* y_max-y_min */
+int nx;						/* width of movie window (pixels) */
+int ny;						/* height of movie window (pixels) */
+int numBodies;				/* number of bodies */
+double K;					/* single constant encoding G, grid spacing, etc. */
+int nsteps;					/* number of time steps */
+int period;			 		/* number of times steps beween movie frames */
+FILE *gif;			 		/* file containing animated GIF */
+gdImagePtr im,  previm;		/* pointers to consecutive GIF images */
+int *colors;		 		/* colors we will use */
+Body *bodies, *bodies_new;	/* two copies of main data structure: list of bodies */
 
 void* my_malloc(int numBytes)
 {
   void *result = malloc(numBytes);
-
   assert(result);
-  byteCount += numBytes;
+  
   return result;
-}
-
-/* Print out in plain text the given body to the output stream */
-void printBody(FILE *out, Body *body)
-{
-	assert(body);
-	assert(out);
-	fprintf(out, "  mass = %lf\n", body->mass);
-	fprintf(out, "  color = %d\n", body->color);
-	fprintf(out, "  size = %d\n", body->size);
-	fprintf(out, "  x= %lf\n", body->x);
-	fprintf(out, "  y= %lf\n", body->y);
-	fprintf(out, "  vx= %lf\n", body->vx);
-	fprintf(out, "  vy= %lf\n", body->vy);
-	fflush(out);
 }
 
 /* Prepare for GIF creation: open file, allocate color array */
@@ -95,11 +78,13 @@ void prepgif(char *outfilename)
 {
 	gif = fopen(outfilename, "wb");
 	assert(gif);
-	colors = (int*)my_malloc(MAXCOLORS*sizeof(int));
+	colors = (int*)my_malloc(sizeof(int) * MAXCOLORS);
+	
+	return;
 }
 
 /* init: reads init file and initializes variables */
-void init(char* infilename, char* outfilename)
+void init(char *infilename, char *outfilename)
 {
 	FILE *infile = fopen(infilename, "r");
 	int i;
@@ -152,10 +137,6 @@ void init(char* infilename, char* outfilename)
 		assert(bodies[i].y >=y_min && bodies[i].y < y_max);
 		fscanf(infile, "%lf", &bodies[i].vx);
 		fscanf(infile, "%lf", &bodies[i].vy);
-		#ifdef DEBUG
-		printf("Body %d:\n", i);
-		printBody(stdout, &bodies[i]);
-		#endif
 	}
 
 	for (i=0; i<numBodies; i++)
@@ -167,20 +148,12 @@ void init(char* infilename, char* outfilename)
 
 	fflush(stdout);
 	fclose(infile);
+	
+	#ifndef NO_GIF
 	prepgif(outfilename);
-}
-
-/* Write time and then state of all bodies to stdout: use for debugging */
-void write_plain(int time)
-{
-	printf("\nTime = %d\n", time);
-
-	int i;
-	for (i=0; i<numBodies; i++)
-	{
-		printf("Body %d:\n", i);
-		printBody(stdout, &bodies[i]);
-	}
+	#endif
+	
+	return;
 }
 
 /* Write one frame of the GIF for given time */
@@ -233,10 +206,6 @@ void write_frame(int time)
 
 	previm=im;
 	im=NULL;
-
-	#ifdef DEBUG
-	write_plain(time);
-	#endif
 }
 
 /* Move forward one time step.	This is the "integration step".	 For
@@ -315,13 +284,16 @@ void update() {
 /* Close GIF file, free all allocated data structures */
 void wrapup()
 {
+	#ifndef NO_GIF
 	if (previm)
 	{
 		gdImageDestroy(previm);
 	}
-
+	
 	gdImageGifAnimEnd(gif);
 	fclose(gif);
+	#endif
+	
 	free(colors);
 	free(bodies);
 	free(bodies_new);
@@ -334,44 +306,51 @@ void wrapup()
  * case random initialization is used. */
 int main(int argc, char* argv[])
 {
-	int i;
-	clock_t t0 = clock();
-	clock_t t1;
+	struct timespec begin_time, end_time; 	//Used for timing
+	double elapsed_time; 					//Used for timing
 
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); //Start timer
+	
 	if (argc != 3)
 	{
-		printf("Usage: nbody <infilename> <outfilename>\n");
+		printf("Usage: nbody_seq <infilename> <outfilename>\n");
+		fflush(stdout);
 		exit(1);
 	}
-
+	
+	#ifndef NO_GIF
+	printf("Writing to gif: %s\n", argv[2]);
+	#else
+	printf("Not writing out gif\n");
+	#endif
+	fflush(stdout);
+	
 	init(argv[1], argv[2]);
+	
+	#ifndef NO_GIF
 	write_frame(0);
-
-	for (i=1; i<=nsteps; i++)
+	#endif
+	
+	int i;
+	for (i = 1; i <= nsteps; i++)
 	{
-		#ifdef DEBUG
-		printf("Computing time %d...", i);
-		fflush(stdout);
-		#endif
-
 		update();
 
-		#ifdef DEBUG
-		printf("done.\n");
-		fflush(stdout);
-		#endif
-
+		#ifndef NO_GIF
 		if (i%period == 0)
 		{
 			write_frame(i);
 		}
+		#endif
 	}
 
 	wrapup();
-	t1 = clock() - t0;
+	
+	clock_gettime(CLOCK_MONOTONIC, &end_time);	// End timer
+	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
+	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
 
-	printf("Total time (seconds): %f\n", 1.0*t1/CLOCKS_PER_SEC);
-	printf("Total memory allocated (bytes): %d\n", byteCount);
+	printf("Total time (seconds): %f\n", elapsed_time);
 	fflush(stdout);
 
 	return 0;

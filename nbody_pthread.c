@@ -27,7 +27,7 @@
 
 #define _POSIX_C_SOURCE 199309L // Needed this define for timing functions
 #include <assert.h>
-#include "gd.h"
+#include <gd.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdlib.h>

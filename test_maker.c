@@ -20,7 +20,7 @@ int randomInt(int a, int b) {
  
  int main(int argc, char* argv[])
  {
-	unsigned int seed = 1;
+	unsigned int seed = 8086;
 	int numBodies = 500;
 	char *end;
 	
@@ -33,10 +33,13 @@ int randomInt(int a, int b) {
 		seed = strtol(argv[1], &end, 10);
 		numBodies = strtol(argv[2], &end, 10);
 	}
-	else
+	else if(argc > 3)
 	{
-		printf("./test_maker <seed> <numBodies>\n");
+		printf("Usage: ./test_maker <seed> <numBodies>\n");
+		exit(1);
 	}
+	
+	printf("seed=%d, numBodies=%d\nCreating Tests/random.txt\n", seed, numBodies);
 	
 	int x_min = -1000;
 	int x_max = 3000;

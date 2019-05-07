@@ -30,7 +30,7 @@
 #include <assert.h>
 #include <math.h>
 #include <time.h>
-#include "gd.h"
+#include <gd.h>
 #define MAXCOLORS 254
 #define PWIDTH 1
 

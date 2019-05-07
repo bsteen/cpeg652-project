@@ -92,35 +92,40 @@ void init(char *infilename, char *outfilename)
 
 	assert(infile);
 	fscanf(infile, "%lf", &x_min);
-	printf("x_min = %lf\n", x_min);
 	fscanf(infile, "%lf", &x_max);
-	printf("x_max = %lf\n", x_max);
 	assert(x_max > x_min);
 	univ_x = x_max-x_min;
 	fscanf(infile, "%lf", &y_min);
-	printf("y_min = %lf\n", y_min);
 	fscanf(infile, "%lf", &y_max);
-	printf("y_max = %lf\n", y_max);
 	assert(y_max > y_min);
 	univ_y = y_max-y_min;
 	fscanf(infile, "%d", &nx);
-	printf("nx = %d\n", nx);
 	assert(nx>=10);
 	fscanf(infile, "%d", &ny);
-	printf("ny = %d\n", ny);
 	assert(ny>=10);
 	fscanf(infile, "%lf", &K);
-	printf("K = %f\n", K);
 	assert(K>0);
 	fscanf(infile, "%d", &nsteps);
-	printf("nsteps = %d\n", nsteps);
 	assert(nsteps>=1);
 	fscanf(infile, "%d", &period);
-	printf("period = %d\n", period);
 	assert(period>0);
 	fscanf(infile, "%d", &numBodies);
-	printf("numBodies = %d\n", numBodies);
 	assert(numBodies>0);
+	
+	#ifndef NO_IO
+	printf("x_min = %lf\n", x_min);
+	printf("x_max = %lf\n", x_max);
+	printf("y_min = %lf\n", y_min);
+	printf("y_max = %lf\n", y_max);
+	printf("nx = %d\n", nx);
+	printf("ny = %d\n", ny);
+	printf("K = %f\n", K);
+	printf("nsteps = %d\n", nsteps);
+	printf("period = %d\n", period);
+	printf("numBodies = %d\n", numBodies);
+	fflush(stdout);
+	#endif
+	
 	bodies = (Body*)my_malloc(numBodies*sizeof(Body));
 	bodies_new = (Body*)my_malloc(numBodies*sizeof(Body));
 
@@ -321,16 +326,14 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 	
-	#ifndef NO_GIF
+	#ifndef NO_IO
 	printf("Writing to gif: %s\n", argv[2]);
-	#else
-	printf("Not writing out gif\n");
-	#endif
 	fflush(stdout);
+	#endif
 	
 	init(argv[1], argv[2]);
 	
-	#ifndef NO_GIF
+	#ifndef NO_IO
 	write_frame(0);
 	#endif
 	
@@ -339,7 +342,7 @@ int main(int argc, char* argv[])
 	{
 		update();
 
-		#ifndef NO_GIF
+		#ifndef NO_IO
 		if (i%period == 0)
 		{
 			write_frame(i);

@@ -361,7 +361,6 @@ int main(int argc, char* argv[])
 	threads = (pthread_t*)my_malloc(sizeof(pthread_t) * num_threads);
 
 	int i;
-	// TO DO: MAKE MAIN THREAD WORK TOO
 	for(i = 0; i < num_threads; i++){
 		threads_ids[i] = i; 						// i is the thread index or rank
 		int first = (i * numBodies) / num_threads;	// Calculate the local starting index
@@ -371,13 +370,17 @@ int main(int argc, char* argv[])
 
 	for (i = 1; i <= nsteps; i++)
 	{
+		// Skip over main thread (id=0) when calling pthread_create
 		int j;
-		for(j = 0; j < num_threads; j++)
+		for(j = 1; j < num_threads; j++)
 		{
 			pthread_create(threads + j, NULL, update, threads_ids + j);
 		}
+		
+		// Have main thread do work instead of waiting
+		update(threads_ids);
 
-		for(j = 0; j < num_threads; j++)
+		for(j = 1; j < num_threads; j++)
 		{
 			pthread_join(threads[j], NULL);
 		}

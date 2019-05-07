@@ -25,12 +25,13 @@
 // Changes and additions done by: Benjamin Steenkamer, 2019
 // CPEG 652 Semester Project
 
+#include <assert.h>
+#include <gd.h>
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
-#include <math.h>
 #include <time.h>
-#include <gd.h>
+
 #define MAXCOLORS 254
 #define PWIDTH 1
 
@@ -206,6 +207,8 @@ void write_frame(int time)
 
 	previm=im;
 	im=NULL;
+	
+	return;
 }
 
 /* Move forward one time step.	This is the "integration step".	 For
@@ -306,10 +309,10 @@ void wrapup()
  * case random initialization is used. */
 int main(int argc, char* argv[])
 {
-	struct timespec begin_time, end_time; 	//Used for timing
-	double elapsed_time; 					//Used for timing
+	struct timespec begin_time, end_time; 	// Used for timing
+	double elapsed_time; 					// Used for timing
 
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); //Start timer
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
 	
 	if (argc != 3)
 	{

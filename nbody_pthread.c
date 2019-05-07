@@ -11,7 +11,7 @@
  *
  * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the GNU
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -20,140 +20,122 @@
  * 02110-1301 USA.
  */
 
-// nbody_pthread.c: Parallel 2-d nbody simulation using POSIX Threads
+// nbody_seq.c: Sequential 2-d nbody simulation in C
 // Original program by authors listed above
 // Changes and additions done by: Benjamin Steenkamer, 2019
 // CPEG 652 Semester Project
 
-#define _POSIX_C_SOURCE 199309L // Needed this define for timing functions
 #include <assert.h>
 #include <gd.h>
 #include <math.h>
-#include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+
+#include <pthread.h>
+
 #define MAXCOLORS 254
 #define PWIDTH 1
 
 /* There is one structure of this type for each "body" in the
- * simulation.  All of the attributes and the current state of the
+ * simulation.	All of the attributes and the current state of the
  * body are recorded in this structure. */
-typedef struct BodyStruct
-{
-	double mass;     /* mass of body */
-	int color;       /* color used to draw this body */
-	int size;        /* diameter of body in pixels */
-	double x;        /* x position */
-	double y;        /* y position */
-	double vx;       /* velocity, x-direction */
-	double vy;       /* velocity, y-direction */
+typedef struct BodyStruct {
+	double mass;	/* mass of body */
+	int color;	   	/* color used to draw this body */
+	int size;		/* diameter of body in pixels */
+	double x;		/* x position */
+	double y;		/* y position */
+	double vx;		/* velocity, x-direction */
+	double vy;		/* velocity, y-direction */
 } Body;
 
-// Global variables
-double x_min;        /* coord of left edge of universe */
-double x_max;        /* coord of right edge of universe */
-double y_min;        /* coord of bottom edge of universe */
-double y_max;        /* coord of top edge of universe */
-double univ_x;       /* x_max-x_min */
-double univ_y;       /* y_max-y_min */
-int nx;              /* width of movie window (pixels) */
-int ny;              /* height of movie window (pixels) */
-int numBodies;       /* number of bodies */
-double K;            /* single constant encoding G, grid spacing, etc. */
-int nsteps;          /* number of time steps */
-int period;          /* number of times steps beween movie frames */
-FILE *gif;           /* file containing animated GIF */
-gdImagePtr im, previm;      /* pointers to consecutive GIF images */
-int *colors;         /* colors we will use */
+/* Global variables */
+double x_min;				/* coord of left edge of universe */
+double x_max;				/* coord of right edge of universe */
+double y_min;				/* coord of bottom edge of universe */
+double y_max;				/* coord of top edge of universe */
+double univ_x;				/* x_max-x_min */
+double univ_y;				/* y_max-y_min */
+int nx;						/* width of movie window (pixels) */
+int ny;						/* height of movie window (pixels) */
+int numBodies;				/* number of bodies */
+double K;					/* single constant encoding G, grid spacing, etc. */
+int nsteps;					/* number of time steps */
+int period;			 		/* number of times steps beween movie frames */
+FILE *gif;			 		/* file containing animated GIF */
+gdImagePtr im,  previm;		/* pointers to consecutive GIF images */
+int *colors;		 		/* colors we will use */
 Body *bodies, *bodies_new;	/* two copies of main data structure: list of bodies */
-int byteCount = 0;
 
 // Pthread global variables
-int* start_idx_num_owned; // Array containing the startting "local" index in the bodies array and the number bodies a thread owned
-//The array is orgranized as follows: [thread 0 start index, thread 0 # owned, thread 0 start index, thread 1 # owned .....]
 int num_threads = 0;
-int* threads_ids;
-pthread_t* threads;
+int *start_idx_num_owned;	// Array containing the starting "local" index in the
+							// bodies array and the number bodies a thread owned
+							// The array is organized as follows:
+							// [thread 0 start index, thread 0 # owned, thread 1 start index, thread 1 # owned, ...]
+int *threads_ids;
+pthread_t *threads;
 
-void* my_malloc(int numBytes) 
+void* my_malloc(int numBytes)
 {
-	void *result = malloc(numBytes);
+  void *result = malloc(numBytes);
+  assert(result);
 
-	assert(result);
-	byteCount += numBytes;
-	return result;
+  return result;
 }
 
-// Print out in plain text the given body to the output stream
-void printBody(FILE *out, Body *body)
-{
-	assert(body);
-	assert(out);
-	fprintf(out, "  mass = %lf\n", body->mass);
-	fprintf(out, "  color = %d\n", body->color);
-	fprintf(out, "  size = %d\n", body->size);
-	fprintf(out, "  x= %lf\n", body->x);
-	fprintf(out, "  y= %lf\n", body->y);
-	fprintf(out, "  vx= %lf\n", body->vx);
-	fprintf(out, "  vy= %lf\n", body->vy);
-	fflush(out);
-}
-
-// Prepare for GIF creation: open file, allocate color array
-void prepgif(char *outfilename) 
+/* Prepare for GIF creation: open file, allocate color array */
+void prepgif(char *outfilename)
 {
 	gif = fopen(outfilename, "wb");
 	assert(gif);
-	colors = (int*)my_malloc(MAXCOLORS*sizeof(int));
+	colors = (int*)my_malloc(sizeof(int) * MAXCOLORS);
+
+	return;
 }
 
-// init: reads init file and initializes variables
-void init(char* infilename, char* outfilename) 
+/* init: reads init file and initializes variables */
+void init(char *infilename, char *outfilename)
 {
 	FILE *infile = fopen(infilename, "r");
 	int i;
 
 	assert(infile);
 	fscanf(infile, "%lf", &x_min);
+	printf("x_min = %lf\n", x_min);
 	fscanf(infile, "%lf", &x_max);
+	printf("x_max = %lf\n", x_max);
 	assert(x_max > x_min);
 	univ_x = x_max-x_min;
 	fscanf(infile, "%lf", &y_min);
+	printf("y_min = %lf\n", y_min);
 	fscanf(infile, "%lf", &y_max);
+	printf("y_max = %lf\n", y_max);
 	assert(y_max > y_min);
 	univ_y = y_max-y_min;
 	fscanf(infile, "%d", &nx);
+	printf("nx = %d\n", nx);
 	assert(nx>=10);
 	fscanf(infile, "%d", &ny);
+	printf("ny = %d\n", ny);
 	assert(ny>=10);
 	fscanf(infile, "%lf", &K);
+	printf("K = %f\n", K);
 	assert(K>0);
 	fscanf(infile, "%d", &nsteps);
+	printf("nsteps = %d\n", nsteps);
 	assert(nsteps>=1);
 	fscanf(infile, "%d", &period);
+	printf("period = %d\n", period);
 	assert(period>0);
 	fscanf(infile, "%d", &numBodies);
-	assert(numBodies>0);
-
-	#ifndef TIMING
-	printf("x_min = %lf\n", x_min);
-	printf("x_max = %lf\n", x_max);
-	printf("y_max = %lf\n", y_max);
-	printf("y_min = %lf\n", y_min);
-	printf("nx = %d\n", nx);
-	printf("ny = %d\n", ny);
-	printf("K = %f\n", K);
-	printf("nsteps = %d\n", nsteps);
-	printf("period = %d\n", period);
 	printf("numBodies = %d\n", numBodies);
-	printf("num_threads = %d\n", num_threads);
-	#endif
-
+	assert(numBodies>0);
 	bodies = (Body*)my_malloc(numBodies*sizeof(Body));
 	bodies_new = (Body*)my_malloc(numBodies*sizeof(Body));
-	
-	for (i=0; i<numBodies; i++) 
+
+	for (i=0; i<numBodies; i++)
 	{
 		fscanf(infile, "%lf", &bodies[i].mass);
 		assert(bodies[i].mass > 0);
@@ -167,100 +149,92 @@ void init(char* infilename, char* outfilename)
 		assert(bodies[i].y >=y_min && bodies[i].y < y_max);
 		fscanf(infile, "%lf", &bodies[i].vx);
 		fscanf(infile, "%lf", &bodies[i].vy);
-		#ifdef DEBUG
-		printf("Body %d:\n", i);
-		printBody(stdout, &bodies[i]);
-		#endif
 	}
-	for (i=0; i<numBodies; i++) 
+
+	for (i=0; i<numBodies; i++)
 	{
 		bodies_new[i].mass = bodies[i].mass;
 		bodies_new[i].color = bodies[i].color;
 		bodies_new[i].size = bodies[i].size;
 	}
-  
+
 	fflush(stdout);
 	fclose(infile);
+
+	#ifndef NO_GIF
 	prepgif(outfilename);
+	#endif
+
+	return;
 }
 
- // Write time and then state of all bodies to stdout: use for debugging
-void write_plain(int time) 
-{
-	int i;
-	printf("\nTime = %d\n", time);
-	
-	for (i=0; i<numBodies; i++) {
-		printf("Body %d:\n", i);
-		printBody(stdout, &bodies[i]);
-	}
-}
-
-// Write one frame of the GIF for given time
+/* Write one frame of the GIF for given time */
 void write_frame(int time)
 {
 	int i;
+
 	im = gdImageCreate(nx,ny);
-	
-	if (time == 0) {
-		gdImageColorAllocate(im, 0, 0, 0);  /* black background */
-		for (i=0; i<MAXCOLORS; i++){
-			colors[i] = gdImageColorAllocate (im, i, 0, MAXCOLORS-i-1);	/* (im, i,i,i); gives gray-scale image */
+	if (time == 0)
+	{
+		gdImageColorAllocate(im, 0, 0, 0);	/* black background */
+		for (i=0; i<MAXCOLORS; i++)
+		{
+			colors[i] = gdImageColorAllocate (im, i, 0, MAXCOLORS-i-1);		/* (im, i,i,i); gives gray-scale image */
 		}
-		
 		gdImageGifAnimBegin(im, gif, 1, -1);
-	} 
+	}
 	else
 	{
 		gdImagePaletteCopy(im, previm);
 	}
-	
-	for (i=0; i<numBodies; i++) {
+
+	for (i=0; i<numBodies; i++)
+	{
 		Body *body = bodies + i;
 		double x = body->x;
 
 		if (x>=0 && x<nx)
 		{
 			double y = body->y;
-
-			if (y>=0 && y<ny) {
+			if (y>=0 && y<ny)
+			{
 				int size = bodies[i].size;
 				int color = bodies[i].color;
 
 				gdImageFilledEllipse(im, (int)x, ny-(int)y, size, size, colors[color]);
-			}
+			 }
 		}
 	}
-	
-	if (time == 0) 
+
+	if (time == 0)
 	{
 		gdImageGifAnimAdd(im, gif, 0, 0, 0, 0, gdDisposalNone, NULL);
-	} 
+	}
 	else
 	{
 		gdImageGifAnimAdd(im, gif, 0, 0, 0, 5, gdDisposalNone, /* previm */ NULL);
 		gdImageDestroy(previm);
 	}
-	
+
 	previm=im;
 	im=NULL;
-	#ifdef DEBUG
-	write_plain(time);
-	#endif
+
+	return;
 }
 
-// Move forward one time step.  This is the "integration step".  For
-// each body b, compute the total force acting on that body.  If you
-// divide this by the mass of b, you get b's acceleration.  So you
-// actually just calculate the b's acceleration directly, since this
-// is what you want to know.  Once you have the acceleration, proceed
-// as follows: update the position by adding the current velocity,
-// then update the velocity by adding to it the current acceleration.
+/* Move forward one time step.	This is the "integration step".	 For
+ * each body b, compute the total force acting on that body.  If you
+ * divide this by the mass of b, you get b's acceleration.	So you
+ * actually just calculate the b's acceleration directly, since this
+ * is what you want to know.  Once you have the acceleration, proceed
+ * as follows: update the position by adding the current velocity,
+ * then update the velocity by adding to it the current acceleration.
+ */
 
-void* update(void* arg)
-{
+ // Pthread function must take in a single void ptr and return a void ptr
+void *update(void *arg) {
+
 	int i, j;
-
 	int* ID_ptr = (int*)(arg);
 	int ID = *ID_ptr;
 	int first = start_idx_num_owned[ID * 2];
@@ -291,7 +265,7 @@ void* update(void* arg)
 
 			if (r_squared != 0) {
 				r = sqrt(r_squared);
-				if (r != 0) 
+				if (r != 0)
 				{
 				  acceleration = K*mass/(r_squared);
 				  ax += acceleration*dx/r;
@@ -302,16 +276,16 @@ void* update(void* arg)
 
 		x += vx;
 		y += vy;
-		
+
 		if (x>=x_max || x<x_min)
 		{
 			x=x+(ceil((x_max-x)/univ_x)-1)*univ_x;
-		} 
-		if (y>=y_max || y<y_min) 
+		}
+		if (y>=y_max || y<y_min)
 		{
 			y=y+(ceil((y_max-y)/univ_y)-1)*univ_y;
-		} 
-		
+		}
+
 		vx += ax;
 		vy += ay;
 		assert(!(isnan(x) || isnan(y)));
@@ -326,85 +300,99 @@ void* update(void* arg)
 }
 
 /* Close GIF file, free all allocated data structures */
-void wrapup() 
+void wrapup()
 {
-	if (previm) gdImageDestroy(previm);
+	#ifndef NO_GIF
+	if (previm)
+	{
+		gdImageDestroy(previm);
+	}
+
 	gdImageGifAnimEnd(gif);
 	fclose(gif);
+	#endif
+
 	free(colors);
 	free(bodies);
 	free(bodies_new);
 }
 
-
-/* Perform an n-body simulation and create a GIF movie.  Usage: you
+/* Perform an n-body simulation and create a GIF movie.	 Usage: you
  * can either specify two arguments: the name of the configuration
  * file and the name of the GIF file you are going to create, or you
  * can specify one argument (just the name of the GIF file), in which
  * case random initialization is used. */
 int main(int argc, char* argv[])
 {
-	int i;
-	int j;
-	int first;
-	Body *tmp;
-	struct timespec begin_time, end_time; 	//Used for timing
-	double elapsed_time; 					//Used for timing
+	struct timespec begin_time, end_time; 	// Used for timing
+	double elapsed_time; 					// Used for timing
 
-	clock_gettime(CLOCK_MONOTONIC, &begin_time);//Start timer
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
 
-
-	if (argc != 4) {
+	if (argc != 4)
+	{
 		printf("Usage: nbody_pthread <infilename> <outfilename> <number of threads>\n");
+		fflush(stdout);
 		exit(1);
 	}
-	
+
 	num_threads = atoi(argv[3]);
+	if(num_threads < 1)
+	{
+		printf("Need at least 1 thread\n");
+		exit(1);
+	}
+
+	#ifndef NO_GIF
+	printf("Writing to gif: %s\n", argv[2]);
+	#else
+	printf("Not writing out gif\n");
+	#endif
+	fflush(stdout);
+
 	init(argv[1], argv[2]);
+
+	#ifndef NO_GIF
+	write_frame(0);
+	#endif
 
 	start_idx_num_owned = (int*)my_malloc(sizeof(int) * num_threads * 2);
 	threads_ids = (int*)my_malloc(sizeof(int) * num_threads);
 	threads = (pthread_t*)my_malloc(sizeof(pthread_t) * num_threads);
 
+	int i;
+	// TO DO: MAKE MAIN THREAD WORK TOO
 	for(i = 0; i < num_threads; i++){
-		threads_ids[i] = i; //i is the thread index or rank
-		first = (i * numBodies) / num_threads; //calculate the local starting index
+		threads_ids[i] = i; 						// i is the thread index or rank
+		int first = (i * numBodies) / num_threads;	// Calculate the local starting index
 		start_idx_num_owned[i * 2] = first;
-		[(i * 2) + 1] = ((i + 1) * numBodies) / num_threads - first; //Calculate the number of bodies owned
+		start_idx_num_owned[(i * 2) + 1] = ((i + 1) * numBodies) / num_threads - first; // Calculate the number of bodies owned
 	}
-
-	write_frame(0);
 
 	for (i = 1; i <= nsteps; i++)
 	{
-		#ifdef DEBUG
-		printf("Computing time %d...", i);
-		fflush(stdout);
-		#endif
-
+		int j;
 		for(j = 0; j < num_threads; j++)
 		{
 			pthread_create(threads + j, NULL, update, threads_ids + j);
 		}
+
 		for(j = 0; j < num_threads; j++)
 		{
 			pthread_join(threads[j], NULL);
 		}
 
-		//Swap arrays after running update calculation
-		tmp = bodies;
+		// Swap arrays after running update calculation
+		Body *tmp = bodies;
 		bodies = bodies_new;
 		bodies_new = tmp;
 
-		#ifdef DEBUG
-		printf("done.\n");
-		fflush(stdout);
-		#endif
-
+		#ifndef NO_GIF
 		if (i%period == 0)
 		{
 			write_frame(i);
 		}
+		#endif
 	}
 
 	wrapup();
@@ -412,16 +400,11 @@ int main(int argc, char* argv[])
 	free(threads_ids);
 	free(threads);
 
-	clock_gettime(CLOCK_MONOTONIC, &end_time);//End timer
+	clock_gettime(CLOCK_MONOTONIC, &end_time);	// End timer
 	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
 
-	printf("Total time (seconds) for pthread: %f\n", elapsed_time);
-	
-	#ifndef TIMING
-	printf("Total memory allocated (bytes): %d\n", byteCount);
-	#endif
-	
+	printf("Total time (seconds): %f\n", elapsed_time);
 	fflush(stdout);
 
 	return 0;

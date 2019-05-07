@@ -9,7 +9,6 @@
 CC = gcc
 MPICC = mpicc
 RUN = mpirun -np
-FLAGS = -O4 -Wall
 LIBS = -lgd -lm
 P_LIBS = -pthread -lrt
 
@@ -19,34 +18,31 @@ clean:
 ############################## RANDOM TEST GEN #################################
 
 test_maker: test_maker.c
-	$(CC) test_maker.c -o test_maker $(FLAGS) -lm
+	$(CC) test_maker.c -o test_maker -Wall -O3 -lm
 
 ############################ SEQUENTIAL VERSION ################################
 
-nbodyr.gif: nbody_seq random.txt
-	./nbody_seq random.txt nbodyr.gif
-
-nbody1.gif: nbody_seq config1.txt
-	./nbody_seq config1.txt nbody1.gif
-
-nbody2.gif: nbody_seq config2.txt
-	./nbody_seq config2.txt nbody2.gif
-
-nbody3.gif: nbody_seq config3.txt
-	./nbody_seq config3.txt nbody3.gif
-
 nbody_seq: nbody_seq.c
-	$(CC) nbody_seq.c -o nbody_seq $(FLAGS) $(LIBS)
+	$(CC) nbody_seq.c -o nbody_seq -Wall -O0 $(LIBS)
+	
+nbody_seq_3: nbody_seq.c
+	$(CC) nbody_seq.c -o nbody_seq_3 -Wall -O3 $(LIBS)
 	
 ########################### PTHREAD VERSION ####################################
 
 nbody_pthread: nbody_pthread.c
-	$(CC) nbody_pthread.c -o nbody_pthread $(FLAGS) $(LIBS) $(P_LIBS)
+	$(CC) nbody_pthread.c -o nbody_pthread -Wall -O0 $(LIBS) $(P_LIBS)
 	
+nbody_pthread_3: nbody_pthread.c
+	$(CC) nbody_pthread.c -o nbody_pthread_3 -Wall -O3 $(LIBS) $(P_LIBS)	
+
 ############################# OMP VERSION ######################################
 
 nbody_omp: nbody_omp.c
-	$(CC) nbody_omp.c -o nbody_omp $(FLAGS) $(LIBS)
+	$(CC) nbody_omp.c -o nbody_omp -Wall -O0 $(LIBS)
+	
+nbody_omp_3: nbody_omp.c
+	$(CC) nbody_omp.c -o nbody_omp_3 -Wall -O3 $(LIBS)
 
 ############################# MPI VERSION ######################################
 

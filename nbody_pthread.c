@@ -50,7 +50,7 @@ typedef struct BodyStruct
 	double vy;       /* velocity, y-direction */
 } Body;
 
-/* Global variables */
+// Global variables
 double x_min;        /* coord of left edge of universe */
 double x_max;        /* coord of right edge of universe */
 double y_min;        /* coord of bottom edge of universe */
@@ -153,7 +153,8 @@ void init(char* infilename, char* outfilename)
 	bodies = (Body*)my_malloc(numBodies*sizeof(Body));
 	bodies_new = (Body*)my_malloc(numBodies*sizeof(Body));
 	
-	for (i=0; i<numBodies; i++) {
+	for (i=0; i<numBodies; i++) 
+	{
 		fscanf(infile, "%lf", &bodies[i].mass);
 		assert(bodies[i].mass > 0);
 		fscanf(infile, "%d", &bodies[i].color);

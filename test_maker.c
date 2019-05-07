@@ -49,7 +49,7 @@ int randomInt(int a, int b) {
 	int period = 2;
 	
 	srand(seed);
-	FILE *file = fopen("random.txt", "w");
+	FILE *file = fopen("Tests/random.txt", "w");
 	assert(file);
 	
 	fprintf(file, "%d %d %d %d\n", x_min, x_max, y_min, y_max);

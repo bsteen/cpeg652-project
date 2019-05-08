@@ -3,11 +3,9 @@
 
 # Requirements for project:
 # sudo apt install gcc
-# sudo apt install openmpi-bin libopenmpi-dev
 # sudo apt install libomp-dev
 
 CC = gcc
-MPICC = mpicc
 LIBS = -lgd -lm
 P_LIBS = -pthread -lrt
 
@@ -80,23 +78,3 @@ nbody_omp_3_no_gif: nbody_omp.c
 
 # run_nbody_omp_3:
 # ./nbody_omp_3 Tests/random.txt Output/nbody_omp_3.gif X
-
-############################# MPI VERSION ######################################
-
-nbody_mpi: nbody_mpi.c
-	$(MPICC) nbody_mpi.c -o nbody_mpi -Wall -O0 $(LIBS)
-
-nbody_mpi_no_gif: nbody_mpi.c
-	$(MPICC) nbody_mpi.c -o nbody_mpi -DNO_IO -Wall -O0 $(LIBS)
-
-# run_nbody_mpi:
-# mpirun -np X ./nbody_mpi Tests/random.txt Output/nbody_omp.gif
-
-nbody_mpi_3: nbody_mpi.c
-	$(MPICC) nbody_mpi.c -o nbody_mpi_3 -Wall -O3 $(LIBS)
-
-nbody_mpi_3_no_gif: nbody_mpi.c
-	$(MPICC) nbody_mpi.c -o nbody_mpi_3 -DNO_IO -Wall -O3 $(LIBS)
-
-# run_nbody_mpi_3:
-# mpirun -np X ./nbody_mpi_3 Tests/random.txt Output/nbody_omp.gif

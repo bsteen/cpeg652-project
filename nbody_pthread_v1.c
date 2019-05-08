@@ -123,7 +123,7 @@ void init(char *infilename, char *outfilename)
 	fscanf(infile, "%d", &numBodies);
 	assert(numBodies>0);
 	
-	#ifndef NO_IO
+	#ifndef NO_OUT
 	printf("x_min = %lf\n", x_min);
 	printf("x_max = %lf\n", x_max);
 	printf("y_min = %lf\n", y_min);
@@ -163,10 +163,9 @@ void init(char *infilename, char *outfilename)
 		bodies_new[i].size = bodies[i].size;
 	}
 
-	fflush(stdout);
 	fclose(infile);
 
-	#ifndef NO_GIF
+	#ifndef NO_OUT
 	prepgif(outfilename);
 	#endif
 
@@ -239,12 +238,13 @@ void write_frame(int time)
  // Pthread function must take in a single void ptr and return a void ptr
 void *update(void *arg) {
 
-	int i, j;
+	int i;
 	int* ID_ptr = (int*)(arg);
 	int ID = *ID_ptr;
 	int first = start_idx_num_owned[ID * 2];
 	int num_owned = start_idx_num_owned[(ID * 2) + 1];
 
+	// Loop through the bodies owned by this thread
 	for (i = first; i < first + num_owned; i++)
 	{
 		double x = bodies[i].x;
@@ -253,7 +253,9 @@ void *update(void *arg) {
 		double vy = bodies[i].vy;
 		double ax = 0;
 		double ay = 0;
+		int j;
 
+		// Apply effects of all other bodies onto this current body
 		for (j = 0; j < numBodies; j++)
 		{
 			double r, mass, dx, dy, r_squared, acceleration;
@@ -307,7 +309,7 @@ void *update(void *arg) {
 /* Close GIF file, free all allocated data structures */
 void wrapup()
 {
-	#ifndef NO_GIF
+	#ifndef NO_OUT
 	if (previm)
 	{
 		gdImageDestroy(previm);
@@ -336,7 +338,7 @@ int main(int argc, char* argv[])
 
 	if (argc != 4)
 	{
-		printf("Usage: nbody_pthread <infilename> <outfilename> <number of threads>\n");
+		printf("Usage: nbody_pthread_v1 <infilename> <outfilename> <number of threads>\n");
 		fflush(stdout);
 		exit(1);
 	}
@@ -348,32 +350,38 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	#ifndef NO_IO
+	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
 	fflush(stdout);
 	#endif
 
 	init(argv[1], argv[2]);
 
-	#ifndef NO_IO
+	#ifndef NO_OUT
 	write_frame(0);
 	#endif
 
 	start_idx_num_owned = (int*)my_malloc(sizeof(int) * num_threads * 2);
 	threads_ids = (int*)my_malloc(sizeof(int) * num_threads);
 	threads = (pthread_t*)my_malloc(sizeof(pthread_t) * num_threads);
-
+	
+	
+	// Create the thread IDs and each iteration space (block partitioned)
 	int i;
 	for(i = 0; i < num_threads; i++){
 		threads_ids[i] = i; 						// i is the thread index or rank
 		int first = (i * numBodies) / num_threads;	// Calculate the local starting index
 		start_idx_num_owned[i * 2] = first;
 		start_idx_num_owned[(i * 2) + 1] = ((i + 1) * numBodies) / num_threads - first; // Calculate the number of bodies owned
+		// printf("id=%d, start_idx=%d, num_owned=%d\n", threads_ids[i], start_idx_num_owned[i * 2], start_idx_num_owned[(i * 2) + 1]);
 	}
 
-	for (i = 1; i <= nsteps; i++)
+	// N-body Simulation Loop
+	int step;
+	for (step = 1; step <= nsteps; step++)
 	{
 		// Skip over main thread (id=0) when calling pthread_create
+		// Create 
 		int j;
 		for(j = 1; j < num_threads; j++)
 		{
@@ -382,7 +390,8 @@ int main(int argc, char* argv[])
 		
 		// Have main thread do work instead of waiting
 		update(threads_ids);
-
+		
+		// When this step for n-body is finished, join the threads
 		for(j = 1; j < num_threads; j++)
 		{
 			pthread_join(threads[j], NULL);
@@ -393,10 +402,10 @@ int main(int argc, char* argv[])
 		bodies = bodies_new;
 		bodies_new = tmp;
 
-		#ifndef NO_IO
-		if (i%period == 0)
+		#ifndef NO_OUT
+		if (step % period == 0)
 		{
-			write_frame(i);
+			write_frame(step);
 		}
 		#endif
 	}

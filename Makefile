@@ -10,8 +10,9 @@ LIBS = -lgd -lm
 P_LIBS = -pthread -lrt
 
 clean:
-	rm -f nbody_seq nbody_seq_3 nbody_pthread nbody_pthread_3
-	rm -f nbody_mpi nbody_mpi_3 nbody_mpi_3 nbody_omp nbody_omp_3
+	rm -f nbody_seq nbody_seq_O3 
+	rm -f nbody_pthread_v1 nbody_pthread_v1_O3 nbody_pthread_v2 nbody_pthread_v2_O3
+	rm -f nbody_omp nbody_omp_O3
 	rm -f test_maker Output/*.gif
 
 ############################## RANDOM TEST GEN #################################
@@ -24,57 +25,72 @@ test_maker: test_maker.c
 nbody_seq: nbody_seq.c
 	$(CC) nbody_seq.c -o nbody_seq -Wall -O0 $(LIBS)
 
-nbody_seq_no_gif: nbody_seq.c
-	$(CC) nbody_seq.c -o nbody_seq -DNO_IO -Wall -O0 $(LIBS)
+nbody_seq_no_out: nbody_seq.c
+	$(CC) nbody_seq.c -o nbody_seq -DNO_OUT -Wall -O0 $(LIBS)
 
 run_nbody_seq:
 	./nbody_seq Tests/random.txt Output/nbody_seq.gif
 
-nbody_seq_3: nbody_seq.c
-	$(CC) nbody_seq.c -o nbody_seq_3 -Wall -O3 $(LIBS)
+nbody_seq_O3: nbody_seq.c
+	$(CC) nbody_seq.c -o nbody_seq_O3 -Wall -O3 $(LIBS)
 
-nbody_seq_3_no_gif: nbody_seq.c
-	$(CC) nbody_seq.c -o nbody_seq_3 -DNO_IO -Wall -O3 $(LIBS)
+nbody_seq_O3_no_out: nbody_seq.c
+	$(CC) nbody_seq.c -o nbody_seq_O3 -DNO_OUT -Wall -O3 $(LIBS)
 
-run_nbody_seq_3:
-	./nbody_seq_3 Tests/random.txt Output/nbody_seq_3.gif
+run_nbody_seq_O3:
+	./nbody_seq_O3 Tests/random.txt Output/nbody_seq_O3.gif
 
-########################### PTHREAD VERSION ####################################
+########################### PTHREAD VERSIONS ###################################
+# Pthread implementation V1 
+nbody_pthread_v1: nbody_pthread_v1.c
+	$(CC) nbody_pthread_v1.c -o nbody_pthread_v1 -Wall -O0 $(LIBS) $(P_LIBS)
 
-nbody_pthread: nbody_pthread.c
-	$(CC) nbody_pthread.c -o nbody_pthread -Wall -O0 $(LIBS) $(P_LIBS)
+nbody_pthread_v1_no_out: nbody_pthread_v1.c
+	$(CC) nbody_pthread_v1.c -o nbody_pthread_v1 -DNO_OUT -Wall -O0 $(LIBS) $(P_LIBS)
 
-nbody_pthread_no_gif: nbody_pthread.c
-	$(CC) nbody_pthread.c -o nbody_pthread -DNO_IO -Wall -O0 $(LIBS) $(P_LIBS)
+# ./nbody_pthread_v1 Tests/random.txt Output/nbody_pthread_v1.gif X
 
-# run_nbody_pthread:
-# ./nbody_pthread Tests/random.txt Output/nbody_pthread.gif X
+nbody_pthread_v1_O3: nbody_pthread_v1.c
+	$(CC) nbody_pthread_v1.c -o nbody_pthread_v1_O3 -Wall -O3 $(LIBS) $(P_LIBS)
 
-nbody_pthread_3: nbody_pthread.c
-	$(CC) nbody_pthread.c -o nbody_pthread_3 -Wall -O3 $(LIBS) $(P_LIBS)
+nbody_pthread_v1_O3_no_out: nbody_pthread_v1.c
+	$(CC) nbody_pthread_v1.c -o nbody_pthread_v1_O3 -DNO_OUT -Wall -O3 $(LIBS) $(P_LIBS)
 
-nbody_pthread_3_no_gif: nbody_pthread.c
-	$(CC) nbody_pthread.c -o nbody_pthread_3 -DNO_IO -Wall -O3 $(LIBS) $(P_LIBS)
+# ./nbody_pthread_v1_O3 Tests/random.txt Output/nbody_pthread_v1_O3.gif X
 
-# run_nbody_pthread_3:
-# ./nbody_pthread_3 Tests/random.txt Output/nbody_pthread_3.gif X
+# Pthread implementation V2
+nbody_pthread_v2: nbody_pthread_v2.c
+	$(CC) nbody_pthread_v2.c -o nbody_pthread_v2 -Wall -O0 $(LIBS) $(P_LIBS)
+	
+nbody_pthread_v2_no_out: nbody_pthread_v2.c
+	$(CC) nbody_pthread_v2.c -o nbody_pthread_v2 -DNO_OUT -Wall -O0 $(LIBS) $(P_LIBS)
+	
+# ./nbody_pthread_v2 Tests/random.txt Output/nbody_pthread_v2.gif X
+
+nbody_pthread_v2_O3: nbody_pthread_v2.c
+	$(CC) nbody_pthread_v2.c -o nbody_pthread_v2_O3 -Wall -O3 $(LIBS) $(P_LIBS)
+	
+nbody_pthread_v2_O3_no_out: nbody_pthread_v2.c
+	$(CC) nbody_pthread_v2.c -o nbody_pthread_v2_O3 -DNO_OUT -Wall -O3 $(LIBS) $(P_LIBS)
+	
+# ./nbody_pthread_v2_O3 Tests/random.txt Output/nbody_pthread_v2_O3.gif X
 
 ############################# OMP VERSION ######################################
 
 nbody_omp: nbody_omp.c
 	$(CC) nbody_omp.c -o nbody_omp -Wall -O0 $(LIBS)
 
-nbody_omp_no_gif: nbody_omp.c
-	$(CC) nbody_omp.c -o nbody_omp -DNO_IO -Wall -O0 $(LIBS)
+nbody_omp_no_out: nbody_omp.c
+	$(CC) nbody_omp.c -o nbody_omp -DNO_OUT -Wall -O0 $(LIBS)
 
 # run_nbody_omp:
 # ./nbody_omp Tests/random.txt Output/nbody_omp.gif X
 
-nbody_omp_3: nbody_omp.c
-	$(CC) nbody_omp.c -o nbody_omp_3 -Wall -O3 $(LIBS)
+nbody_omp_O3: nbody_omp.c
+	$(CC) nbody_omp.c -o nbody_omp_O3 -Wall -O3 $(LIBS)
 
-nbody_omp_3_no_gif: nbody_omp.c
-	$(CC) nbody_omp.c -o nbody_omp_3 -DNO_IO -Wall -O3 $(LIBS)
+nbody_omp_O3_no_out: nbody_omp.c
+	$(CC) nbody_omp.c -o nbody_omp_O3 -DNO_OUT -Wall -O3 $(LIBS)
 
 # run_nbody_omp_3:
 # ./nbody_omp_3 Tests/random.txt Output/nbody_omp_3.gif X

@@ -32,6 +32,8 @@
 #include <stdio.h>
 #include <time.h>
 
+#include <pthread.h>
+
 #define MAXCOLORS 254
 #define PWIDTH 1
 
@@ -66,11 +68,21 @@ gdImagePtr im,  previm;		/* pointers to consecutive GIF images */
 int *colors;		 		/* colors we will use */
 Body *bodies, *bodies_new;	/* two copies of main data structure: list of bodies */
 
+// Pthread global variables
+int num_threads = 0;
+int *start_idx_num_owned;	// Array containing the starting "local" index in the
+							// bodies array and the number bodies a thread owned
+							// The array is organized as follows:
+							// [thread 0 start index, thread 0 # owned, thread 1 start index, thread 1 # owned, ...]
+int *threads_ids;
+pthread_t *threads;
+pthread_barrier_t barrier; 
+
 void* my_malloc(int numBytes)
 {
   void *result = malloc(numBytes);
   assert(result);
-  
+
   return result;
 }
 
@@ -80,7 +92,7 @@ void prepgif(char *outfilename)
 	gif = fopen(outfilename, "wb");
 	assert(gif);
 	colors = (int*)my_malloc(sizeof(int) * MAXCOLORS);
-	
+
 	return;
 }
 
@@ -153,11 +165,11 @@ void init(char *infilename, char *outfilename)
 	}
 
 	fclose(infile);
-	
+
 	#ifndef NO_OUT
 	prepgif(outfilename);
 	#endif
-	
+
 	return;
 }
 
@@ -211,7 +223,7 @@ void write_frame(int time)
 
 	previm=im;
 	im=NULL;
-	
+
 	return;
 }
 
@@ -223,71 +235,103 @@ void write_frame(int time)
  * as follows: update the position by adding the current velocity,
  * then update the velocity by adding to it the current acceleration.
  */
-void update() {
-	
-	int i;
-	// Loop though all the bodies
-	for (i=0; i<numBodies; i++)
-	{
-		double x = bodies[i].x;
-		double y = bodies[i].y;
-		double vx = bodies[i].vx;
-		double vy = bodies[i].vy;
-		double ax = 0;
-		double ay = 0;
-		int j;
-		
-		// Apply effects of all other bodies onto this current body
-		for (j=0; j<numBodies; j++)
-		{
-			double r, mass, dx, dy, r_squared, acceleration;
 
-			if (j==i)
+ // Pthread function must take in a single void ptr and return a void ptr
+void *update(void *arg) {
+
+	int step;
+	int* ID_ptr = (int*)(arg);
+	int ID = *ID_ptr;
+	int first = start_idx_num_owned[ID * 2];
+	int num_owned = start_idx_num_owned[(ID * 2) + 1];
+
+	// Main N-body simulation loop
+	for (step = 1; step <= nsteps; step++)
+	{
+		// Must wait until all operations from last step are done before continuing
+		pthread_barrier_wait(&barrier);
+		
+		// Loop through the bodies owned by this thread
+		int i;
+		for (i = first; i < first + num_owned; i++)
+		{
+			double x = bodies[i].x;
+			double y = bodies[i].y;
+			double vx = bodies[i].vx;
+			double vy = bodies[i].vy;
+			double ax = 0;
+			double ay = 0;
+			int j;
+			
+			// Apply effects of all other bodies onto this current body
+			for (j = 0; j < numBodies; j++)
 			{
-				continue;
+				double r, mass, dx, dy, r_squared, acceleration;
+
+				if (j == i)
+				{
+					continue;
+				}
+
+				dx = bodies[j].x - x;
+				dy = bodies[j].y - y;
+				mass = bodies[j].mass;
+				r_squared = dx*dx + dy*dy;
+
+				if (r_squared != 0) {
+					r = sqrt(r_squared);
+					if (r != 0)
+					{
+					  acceleration = K*mass/(r_squared);
+					  ax += acceleration*dx/r;
+					  ay += acceleration*dy/r;
+					}
+				}
 			}
 
-			dx = bodies[j].x - x;
-			dy = bodies[j].y - y;
-			mass = bodies[j].mass;
-			r_squared = dx*dx + dy*dy;
+			x += vx;
+			y += vy;
 
-			if (r_squared != 0)
+			if (x>=x_max || x<x_min)
 			{
-				r = sqrt(r_squared);
-				if (r != 0)
-				{
-					acceleration = K*mass/(r_squared);
-					ax += acceleration*dx/r;
-					ay += acceleration*dy/r;
-				}
-		  }
-		}
+				x=x+(ceil((x_max-x)/univ_x)-1)*univ_x;
+			}
+			if (y>=y_max || y<y_min)
+			{
+				y=y+(ceil((y_max-y)/univ_y)-1)*univ_y;
+			}
 
-		x += vx;
-		y += vy;
-		if (x>=x_max || x<x_min)
-		{
-			x=x+(ceil((x_max-x)/univ_x)-1)*univ_x;
+			vx += ax;
+			vy += ay;
+			assert(!(isnan(x) || isnan(y)));
+			assert(!(isnan(vx) || isnan(vy)));
+			bodies_new[i].x = x;
+			bodies_new[i].y = y;
+			bodies_new[i].vx = vx;
+			bodies_new[i].vy = vy;
 		}
-		if (y>=y_max || y<y_min)
+		
+		// Must wait until all above operations are done before switching arrays
+		pthread_barrier_wait(&barrier);
+		
+		// Main thread handles sequential operations:
+		// Switch old and new arrays and write out frame if needed
+		if (ID == 0)
 		{
-			y=y+(ceil((y_max-y)/univ_y)-1)*univ_y;
-		}
+			Body *tmp = bodies;
+			bodies = bodies_new;
+			bodies_new = tmp;
 
-		vx += ax;
-		vy += ay;
-		assert(!(isnan(x) || isnan(y)));
-		assert(!(isnan(vx) || isnan(vy)));
-		bodies_new[i].x = x;
-		bodies_new[i].y = y;
-		bodies_new[i].vx = vx;
-		bodies_new[i].vy = vy;
+			#ifndef NO_OUT
+			if (step % period == 0)
+			{
+				write_frame(step);
+			}
+			#endif
+		}
 	}
-
-	Body *tmp = bodies;
-	bodies = bodies_new;
-	bodies_new = tmp;
+	
+	return NULL;
 }
 
 /* Close GIF file, free all allocated data structures */
@@ -298,11 +342,11 @@ void wrapup()
 	{
 		gdImageDestroy(previm);
 	}
-	
+
 	gdImageGifAnimEnd(gif);
 	fclose(gif);
 	#endif
-	
+
 	free(colors);
 	free(bodies);
 	free(bodies_new);
@@ -319,41 +363,69 @@ int main(int argc, char* argv[])
 	double elapsed_time; 					// Used for timing
 
 	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
-	
-	if (argc != 3)
+
+	if (argc != 4)
 	{
-		printf("Usage: nbody_seq <infilename> <outfilename>\n");
+		printf("Usage: nbody_pthread_v2 <infilename> <outfilename> <number of threads>\n");
 		fflush(stdout);
 		exit(1);
 	}
-	
+
+	num_threads = atoi(argv[3]);
+	if(num_threads < 1)
+	{
+		printf("Need at least 1 thread\n");
+		exit(1);
+	}
+
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
 	fflush(stdout);
 	#endif
-	
+
 	init(argv[1], argv[2]);
-	
+
 	#ifndef NO_OUT
 	write_frame(0);
 	#endif
-	
-	// N-body Simulation Loop
-	int step;
-	for (step = 1; step <= nsteps; step++)
-	{
-		update();
 
-		#ifndef NO_OUT
-		if (step % period == 0)
+	start_idx_num_owned = (int*)my_malloc(sizeof(int) * num_threads * 2);
+	threads_ids = (int*)my_malloc(sizeof(int) * num_threads);
+	threads = (pthread_t*)my_malloc(sizeof(pthread_t) * num_threads);
+	pthread_barrier_init(&barrier, NULL, num_threads);  // Initialize the barrier
+	
+	// Create the thread IDs and each iteration space (block partitioned)
+	int i;
+	for(i = 0; i < num_threads; i++){
+		threads_ids[i] = i; 						// i is the thread index or rank
+		int first = (i * numBodies) / num_threads;	// Calculate the local starting index
+		start_idx_num_owned[i * 2] = first;
+		start_idx_num_owned[(i * 2) + 1] = ((i + 1) * numBodies) / num_threads - first; // Calculate the number of bodies owned
+		// printf("id=%d, start_idx=%d, num_owned=%d\n", threads_ids[i], start_idx_num_owned[i * 2], start_idx_num_owned[(i * 2) + 1]);
+		
+		// Skip over main thread (id=0) when calling pthread_create
+		// Launch other threads
+		if(i != 0)
 		{
-			write_frame(step);
+			pthread_create(threads + i, NULL, update, threads_ids + i);
 		}
-		#endif
 	}
-
-	wrapup();
 	
+	// Also have main thread do work instead of waiting
+	update(threads_ids);
+
+	// When all steps for n-body are calculated, join the threads (they are no longer needed)
+	for(i = 1; i < num_threads; i++)
+	{
+		pthread_join(threads[i], NULL);
+	}
+	
+	wrapup();
+	free(start_idx_num_owned);
+	free(threads_ids);
+	free(threads);
+	pthread_barrier_destroy(&barrier); // Destroy the barrier; no longer needed
+
 	clock_gettime(CLOCK_MONOTONIC, &end_time);	// End timer
 	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;

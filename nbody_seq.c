@@ -66,6 +66,8 @@ gdImagePtr im,  previm;		/* pointers to consecutive GIF images */
 int *colors;		 		/* colors we will use */
 Body *bodies, *bodies_new;	/* two copies of main data structure: list of bodies */
 
+double step_time_sum = 0.0;
+
 void* my_malloc(int numBytes)
 {
   void *result = malloc(numBytes);
@@ -317,8 +319,6 @@ int main(int argc, char* argv[])
 {
 	struct timespec begin_time, end_time; 	// Used for timing
 	double elapsed_time; 					// Used for timing
-
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
 	
 	if (argc != 3)
 	{
@@ -326,6 +326,8 @@ int main(int argc, char* argv[])
 		fflush(stdout);
 		exit(1);
 	}
+	
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
 	
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
@@ -338,10 +340,16 @@ int main(int argc, char* argv[])
 	write_frame(0);
 	#endif
 	
+	double step_time_sum = 0.0;
+	struct timespec step_start, step_end; 	// Used for timing
+	double step_elapse; 					// Used for timing
+	
 	// N-body Simulation Loop
 	int step;
 	for (step = 1; step <= nsteps; step++)
 	{
+		clock_gettime(CLOCK_MONOTONIC, &step_start);
+		
 		update();
 
 		#ifndef NO_OUT
@@ -350,6 +358,11 @@ int main(int argc, char* argv[])
 			write_frame(step);
 		}
 		#endif
+		
+		clock_gettime(CLOCK_MONOTONIC, &step_end);
+		step_elapse = step_end.tv_sec - step_start.tv_sec;
+		step_elapse += (step_end.tv_nsec - step_start.tv_nsec) / 1000000000.0;
+		step_time_sum += step_elapse;
 	}
 
 	wrapup();
@@ -357,8 +370,9 @@ int main(int argc, char* argv[])
 	clock_gettime(CLOCK_MONOTONIC, &end_time);	// End timer
 	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
-
-	printf("Total time (seconds): %f\n", elapsed_time);
+	
+	printf("\nTotal time (seconds): %f\n", elapsed_time);
+	printf("Thread 0 average step time (seconds): %f\n", step_time_sum / (nsteps * 1.0));
 	fflush(stdout);
 
 	return 0;

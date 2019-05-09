@@ -76,7 +76,8 @@ int *start_idx_num_owned;	// Array containing the starting "local" index in the
 							// [thread 0 start index, thread 0 # owned, thread 1 start index, thread 1 # owned, ...]
 int *threads_ids;
 pthread_t *threads;
-pthread_barrier_t barrier; 
+pthread_barrier_t barrier;
+double *step_time_sums;
 
 void* my_malloc(int numBytes)
 {
@@ -123,7 +124,7 @@ void init(char *infilename, char *outfilename)
 	assert(period>0);
 	fscanf(infile, "%d", &numBodies);
 	assert(numBodies>0);
-	
+
 	#ifndef NO_OUT
 	printf("x_min = %lf\n", x_min);
 	printf("x_max = %lf\n", x_max);
@@ -137,7 +138,7 @@ void init(char *infilename, char *outfilename)
 	printf("numBodies = %d\n", numBodies);
 	fflush(stdout);
 	#endif
-	
+
 	bodies = (Body*)my_malloc(numBodies*sizeof(Body));
 	bodies_new = (Body*)my_malloc(numBodies*sizeof(Body));
 
@@ -248,8 +249,9 @@ void *update(void *arg) {
 	// Main N-body simulation loop
 	for (step = 1; step <= nsteps; step++)
 	{
-		// Must wait until all operations from last step are done before continuing
-		pthread_barrier_wait(&barrier);
+		struct timespec thread_step_s, thread_step_e;
+		double thread_elapsed;
+		clock_gettime(CLOCK_MONOTONIC, &thread_step_s);
 		
 		// Loop through the bodies owned by this thread
 		int i;
@@ -262,7 +264,7 @@ void *update(void *arg) {
 			double ax = 0;
 			double ay = 0;
 			int j;
-			
+
 			// Apply effects of all other bodies onto this current body
 			for (j = 0; j < numBodies; j++)
 			{
@@ -310,10 +312,10 @@ void *update(void *arg) {
 			bodies_new[i].vx = vx;
 			bodies_new[i].vy = vy;
 		}
-		
+
 		// Must wait until all above operations are done before switching arrays
 		pthread_barrier_wait(&barrier);
-		
+
 		// Main thread handles sequential operations:
 		// Switch old and new arrays and write out frame if needed
 		if (ID == 0)
@@ -329,8 +331,17 @@ void *update(void *arg) {
 			}
 			#endif
 		}
+
+		// Must wait until thread 0 (main thread) finishes switching arrays before
+		// continuing with next loop
+		pthread_barrier_wait(&barrier);
+		
+		clock_gettime(CLOCK_MONOTONIC, &thread_step_e);
+		thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
+		thread_elapsed += (thread_step_e.tv_nsec - thread_step_s.tv_nsec) / 1000000000.0;
+		step_time_sums[ID] += thread_elapsed;
 	}
-	
+
 	return NULL;
 }
 
@@ -362,8 +373,6 @@ int main(int argc, char* argv[])
 	struct timespec begin_time, end_time; 	// Used for timing
 	double elapsed_time; 					// Used for timing
 
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
-
 	if (argc != 4)
 	{
 		printf("Usage: nbody_pthread_v2 <infilename> <outfilename> <number of threads>\n");
@@ -377,6 +386,10 @@ int main(int argc, char* argv[])
 		printf("Need at least 1 thread\n");
 		exit(1);
 	}
+
+	step_time_sums = (double*)my_malloc(sizeof(double) * num_threads);
+
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
 
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
@@ -393,7 +406,7 @@ int main(int argc, char* argv[])
 	threads_ids = (int*)my_malloc(sizeof(int) * num_threads);
 	threads = (pthread_t*)my_malloc(sizeof(pthread_t) * num_threads);
 	pthread_barrier_init(&barrier, NULL, num_threads);  // Initialize the barrier
-	
+
 	// Create the thread IDs and each iteration space (block partitioned)
 	int i;
 	for(i = 0; i < num_threads; i++){
@@ -402,7 +415,7 @@ int main(int argc, char* argv[])
 		start_idx_num_owned[i * 2] = first;
 		start_idx_num_owned[(i * 2) + 1] = ((i + 1) * numBodies) / num_threads - first; // Calculate the number of bodies owned
 		// printf("id=%d, start_idx=%d, num_owned=%d\n", threads_ids[i], start_idx_num_owned[i * 2], start_idx_num_owned[(i * 2) + 1]);
-		
+
 		// Skip over main thread (id=0) when calling pthread_create
 		// Launch other threads
 		if(i != 0)
@@ -410,7 +423,7 @@ int main(int argc, char* argv[])
 			pthread_create(threads + i, NULL, update, threads_ids + i);
 		}
 	}
-	
+
 	// Also have main thread do work instead of waiting
 	update(threads_ids);
 
@@ -419,7 +432,7 @@ int main(int argc, char* argv[])
 	{
 		pthread_join(threads[i], NULL);
 	}
-	
+
 	wrapup();
 	free(start_idx_num_owned);
 	free(threads_ids);
@@ -430,8 +443,16 @@ int main(int argc, char* argv[])
 	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
 
-	printf("Total time (seconds): %f\n", elapsed_time);
+	printf("\nTotal time (seconds): %f\n", elapsed_time);
 	fflush(stdout);
+	
+	for(i = 0; i < num_threads; i++)
+	{
+		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
+	}
+	fflush(stdout);
+	
+	free(step_time_sums);
 
 	return 0;
 }

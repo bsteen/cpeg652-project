@@ -76,6 +76,7 @@ int *start_idx_num_owned;	// Array containing the starting "local" index in the
 							// [thread 0 start index, thread 0 # owned, thread 1 start index, thread 1 # owned, ...]
 int *threads_ids;
 pthread_t *threads;
+double *step_time_sums;
 
 void* my_malloc(int numBytes)
 {
@@ -243,6 +244,14 @@ void *update(void *arg) {
 	int ID = *ID_ptr;
 	int first = start_idx_num_owned[ID * 2];
 	int num_owned = start_idx_num_owned[(ID * 2) + 1];
+	
+	struct timespec thread_step_s, thread_step_e;
+	double thread_elapsed;
+	
+	if(ID != 0)	// Thread 0 (main thread) already being timed
+	{
+		clock_gettime(CLOCK_MONOTONIC, &thread_step_s);
+	}
 
 	// Loop through the bodies owned by this thread
 	for (i = first; i < first + num_owned; i++)
@@ -302,6 +311,14 @@ void *update(void *arg) {
 		bodies_new[i].vx = vx;
 		bodies_new[i].vy = vy;
 	}
+	
+	if(ID != 0)	// Thread 0 (main thread) already being timed
+	{
+		clock_gettime(CLOCK_MONOTONIC, &thread_step_e);
+		thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
+		thread_elapsed += (thread_step_e.tv_nsec - thread_step_s.tv_nsec) / 1000000000.0;
+		step_time_sums[ID] += thread_elapsed;
+	}
 
 	return NULL;
 }
@@ -334,8 +351,6 @@ int main(int argc, char* argv[])
 	struct timespec begin_time, end_time; 	// Used for timing
 	double elapsed_time; 					// Used for timing
 
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
-
 	if (argc != 4)
 	{
 		printf("Usage: nbody_pthread_v1 <infilename> <outfilename> <number of threads>\n");
@@ -349,6 +364,10 @@ int main(int argc, char* argv[])
 		printf("Need at least 1 thread\n");
 		exit(1);
 	}
+	
+	step_time_sums = (double*)my_malloc(sizeof(double) * num_threads);
+	
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
 
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
@@ -365,7 +384,6 @@ int main(int argc, char* argv[])
 	threads_ids = (int*)my_malloc(sizeof(int) * num_threads);
 	threads = (pthread_t*)my_malloc(sizeof(pthread_t) * num_threads);
 	
-	
 	// Create the thread IDs and each iteration space (block partitioned)
 	int i;
 	for(i = 0; i < num_threads; i++){
@@ -380,6 +398,10 @@ int main(int argc, char* argv[])
 	int step;
 	for (step = 1; step <= nsteps; step++)
 	{
+		struct timespec main_step_s, main_step_e;
+		double main_thread_elapsed;
+		clock_gettime(CLOCK_MONOTONIC, &main_step_s);
+		
 		// Skip over main thread (id=0) when calling pthread_create
 		// Create 
 		int j;
@@ -408,6 +430,11 @@ int main(int argc, char* argv[])
 			write_frame(step);
 		}
 		#endif
+		
+		clock_gettime(CLOCK_MONOTONIC, &main_step_e);	// End timer
+		main_thread_elapsed = main_step_e.tv_sec - main_step_s.tv_sec;
+		main_thread_elapsed += (main_step_e.tv_nsec - main_step_s.tv_nsec) / 1000000000.0;
+		step_time_sums[0] += main_thread_elapsed;
 	}
 
 	wrapup();
@@ -419,8 +446,16 @@ int main(int argc, char* argv[])
 	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
 
-	printf("Total time (seconds): %f\n", elapsed_time);
+	printf("\nTotal time (seconds): %f\n", elapsed_time);
 	fflush(stdout);
+	
+	for(i = 0; i < num_threads; i++)
+	{
+		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
+	}
+	fflush(stdout);
+	
+	free(step_time_sums);
 
 	return 0;
 }

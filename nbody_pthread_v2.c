@@ -20,7 +20,7 @@
  * 02110-1301 USA.
  */
 
-// nbody_seq.c: Sequential 2-d nbody simulation in C
+// nbody_pthread_v2.c: Parallel 2D n-body simulation in C with PThreads
 // Original program by authors listed above
 // Changes and additions done by: Benjamin Steenkamer, 2019
 // CPEG 652 Semester Project

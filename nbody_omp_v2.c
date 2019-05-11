@@ -21,6 +21,7 @@
  */
 
 // nbody_omp.c: Parallel 2-d nbody simulation using OpenMP
+// Parallelize whole update loop, use barriers
 // Original program by authors listed above
 // Changes and additions done by: Benjamin Steenkamer, 2019
 // CPEG 652 Semester Project
@@ -68,13 +69,13 @@ int *colors;		 		/* colors we will use */
 Body *bodies, *bodies_new;	/* two copies of main data structure: list of bodies */
 
 int num_threads = 0;
-double step_time_sum = 0.0;
+double *step_time_sums;
 
 void* my_malloc(int numBytes)
 {
   void *result = malloc(numBytes);
   assert(result);
-  
+
   return result;
 }
 
@@ -84,7 +85,7 @@ void prepgif(char *outfilename)
 	gif = fopen(outfilename, "wb");
 	assert(gif);
 	colors = (int*)my_malloc(sizeof(int) * MAXCOLORS);
-	
+
 	return;
 }
 
@@ -115,7 +116,7 @@ void init(char *infilename, char *outfilename)
 	assert(period>0);
 	fscanf(infile, "%d", &numBodies);
 	assert(numBodies>0);
-	
+
 	#ifndef NO_OUT
 	printf("x_min = %lf\n", x_min);
 	printf("x_max = %lf\n", x_max);
@@ -129,7 +130,7 @@ void init(char *infilename, char *outfilename)
 	printf("numBodies = %d\n", numBodies);
 	fflush(stdout);
 	#endif
-	
+
 	bodies = (Body*)my_malloc(numBodies*sizeof(Body));
 	bodies_new = (Body*)my_malloc(numBodies*sizeof(Body));
 
@@ -149,30 +150,19 @@ void init(char *infilename, char *outfilename)
 		fscanf(infile, "%lf", &bodies[i].vy);
 	}
 
-	struct timespec bt, et;
-	double elp_t;
-	clock_gettime(CLOCK_MONOTONIC, &bt);
-
-	#pragma omp parallel num_threads(num_threads)
 	for (i=0; i<numBodies; i++)
 	{
 		bodies_new[i].mass = bodies[i].mass;
 		bodies_new[i].color = bodies[i].color;
 		bodies_new[i].size = bodies[i].size;
 	}
-	
-	clock_gettime(CLOCK_MONOTONIC, &et);
-	elp_t = et.tv_sec - bt.tv_sec;
-	elp_t += (et.tv_nsec - bt.tv_nsec) / 1000000000.0;
-	printf("\nLoop time (seconds): %f\n", elp_t);
-	
 
 	fclose(infile);
-	
+
 	#ifndef NO_OUT
 	prepgif(outfilename);
 	#endif
-	
+
 	return;
 }
 
@@ -226,7 +216,7 @@ void write_frame(int time)
 
 	previm=im;
 	im=NULL;
-	
+
 	return;
 }
 
@@ -239,70 +229,105 @@ void write_frame(int time)
  * then update the velocity by adding to it the current acceleration.
  */
 void update() {
+	// Main N-body simulation loop
+	int step;
 	
-	int i;
-	// Loop though all the bodies
-	for (i=0; i<numBodies; i++)
+	#pragma omp parallel num_threads(num_threads) private(step)
+	for (step = 1; step <= nsteps; step++)
 	{
-		double x = bodies[i].x;
-		double y = bodies[i].y;
-		double vx = bodies[i].vx;
-		double vy = bodies[i].vy;
-		double ax = 0;
-		double ay = 0;
-		int j;
+		struct timespec thread_step_s, thread_step_e;
+		double thread_elapsed;
+		clock_gettime(CLOCK_MONOTONIC, &thread_step_s);
 		
-		// Apply effects of all other bodies onto this current body
-		for (j=0; j<numBodies; j++)
+		// Loop through the bodies owned by this thread
+		int i;
+		#pragma omp for
+		for (i = 0; i < numBodies; i++/*i = first; i < first + num_owned; i++*/)
 		{
-			double r, mass, dx, dy, r_squared, acceleration;
+			double x = bodies[i].x;
+			double y = bodies[i].y;
+			double vx = bodies[i].vx;
+			double vy = bodies[i].vy;
+			double ax = 0;
+			double ay = 0;
+			int j;
 
-			if (j==i)
+			// Apply effects of all other bodies onto this current body
+			for (j = 0; j < numBodies; j++)
 			{
-				continue;
+				double r, mass, dx, dy, r_squared, acceleration;
+
+				if (j == i)
+				{
+					continue;
+				}
+
+				dx = bodies[j].x - x;
+				dy = bodies[j].y - y;
+				mass = bodies[j].mass;
+				r_squared = dx*dx + dy*dy;
+
+				if (r_squared != 0) {
+					r = sqrt(r_squared);
+					if (r != 0)
+					{
+					  acceleration = K*mass/(r_squared);
+					  ax += acceleration*dx/r;
+					  ay += acceleration*dy/r;
+					}
+				}
 			}
 
-			dx = bodies[j].x - x;
-			dy = bodies[j].y - y;
-			mass = bodies[j].mass;
-			r_squared = dx*dx + dy*dy;
+			x += vx;
+			y += vy;
 
-			if (r_squared != 0)
+			if (x>=x_max || x<x_min)
 			{
-				r = sqrt(r_squared);
-				if (r != 0)
-				{
-					acceleration = K*mass/(r_squared);
-					ax += acceleration*dx/r;
-					ay += acceleration*dy/r;
-				}
-		  }
-		}
+				x=x+(ceil((x_max-x)/univ_x)-1)*univ_x;
+			}
+			if (y>=y_max || y<y_min)
+			{
+				y=y+(ceil((y_max-y)/univ_y)-1)*univ_y;
+			}
 
-		x += vx;
-		y += vy;
-		if (x>=x_max || x<x_min)
-		{
-			x=x+(ceil((x_max-x)/univ_x)-1)*univ_x;
+			vx += ax;
+			vy += ay;
+			assert(!(isnan(x) || isnan(y)));
+			assert(!(isnan(vx) || isnan(vy)));
+			bodies_new[i].x = x;
+			bodies_new[i].y = y;
+			bodies_new[i].vx = vx;
+			bodies_new[i].vy = vy;
+			
 		}
-		if (y>=y_max || y<y_min)
+		
+		#pragma omp barrier
+		
+		// Main thread handles sequential operations:
+		// Switch old and new arrays and write out frame if needed
+		if (omp_get_thread_num() == 0)
 		{
-			y=y+(ceil((y_max-y)/univ_y)-1)*univ_y;
-		}
+			Body *tmp = bodies;
+			bodies = bodies_new;
+			bodies_new = tmp;
 
-		vx += ax;
-		vy += ay;
-		assert(!(isnan(x) || isnan(y)));
-		assert(!(isnan(vx) || isnan(vy)));
-		bodies_new[i].x = x;
-		bodies_new[i].y = y;
-		bodies_new[i].vx = vx;
-		bodies_new[i].vy = vy;
+			#ifndef NO_OUT
+			if (step % period == 0)
+			{
+				write_frame(step);
+			}
+			#endif
+		}
+		
+		#pragma omp barrier
+		
+		clock_gettime(CLOCK_MONOTONIC, &thread_step_e);
+		thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
+		thread_elapsed += (thread_step_e.tv_nsec - thread_step_s.tv_nsec) / 1000000000.0;
+		step_time_sums[omp_get_thread_num()] += thread_elapsed;
 	}
 
-	Body *tmp = bodies;
-	bodies = bodies_new;
-	bodies_new = tmp;
+	return;
 }
 
 /* Close GIF file, free all allocated data structures */
@@ -313,11 +338,11 @@ void wrapup()
 	{
 		gdImageDestroy(previm);
 	}
-	
+
 	gdImageGifAnimEnd(gif);
 	fclose(gif);
 	#endif
-	
+
 	free(colors);
 	free(bodies);
 	free(bodies_new);
@@ -332,10 +357,10 @@ int main(int argc, char* argv[])
 {
 	struct timespec begin_time, end_time; 	// Used for timing
 	double elapsed_time; 					// Used for timing
-	
+
 	if (argc != 4)
 	{
-		printf("Usage: nbody_omp <infilename> <outfilename> <number of threads>\n");
+		printf("Usage: nbody_omp_v2 <infilename> <outfilename> <number of threads>\n");
 		fflush(stdout);
 		exit(1);
 	}
@@ -346,54 +371,41 @@ int main(int argc, char* argv[])
 		printf("Need at least 1 thread\n");
 		exit(1);
 	}
-	
+
+	step_time_sums = (double*)my_malloc(sizeof(double) * num_threads);
+
 	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
-	
+
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
 	fflush(stdout);
 	#endif
-	
+
 	init(argv[1], argv[2]);
-	
+
 	#ifndef NO_OUT
 	write_frame(0);
 	#endif
-	
-	double step_time_sum = 0.0;
-	struct timespec step_start, step_end; 	// Used for timing
-	double step_elapse; 					// Used for timing
-	
-	// N-body Simulation Loop
-	int step;
-	for (step = 1; step <= nsteps; step++)
-	{
-		clock_gettime(CLOCK_MONOTONIC, &step_start);
-		
-		update();
 
-		#ifndef NO_OUT
-		if (step % period == 0)
-		{
-			write_frame(step);
-		}
-		#endif
-		
-		clock_gettime(CLOCK_MONOTONIC, &step_end);
-		step_elapse = step_end.tv_sec - step_start.tv_sec;
-		step_elapse += (step_end.tv_nsec - step_start.tv_nsec) / 1000000000.0;
-		step_time_sum += step_elapse;
-	}
+	update();	// Calculate all the steps in the simulation
 
 	wrapup();
-	
+
 	clock_gettime(CLOCK_MONOTONIC, &end_time);	// End timer
 	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
-	
+
 	printf("\nTotal time (seconds): %f\n", elapsed_time);
-	printf("Thread 0 average step time (seconds): %f\n", step_time_sum / (nsteps * 1.0));
 	fflush(stdout);
+	
+	int i;
+	for(i = 0; i < num_threads; i++)
+	{
+		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
+	}
+	fflush(stdout);
+	
+	free(step_time_sums);
 
 	return 0;
 }

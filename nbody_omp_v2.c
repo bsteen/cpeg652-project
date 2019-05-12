@@ -405,7 +405,7 @@ int main(int argc, char* argv[])
 
 	for(i = 0; i < num_threads; i++)
 	{
-		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i]);
+		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
 	}
 	fflush(stdout);
 

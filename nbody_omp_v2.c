@@ -231,18 +231,20 @@ void write_frame(int time)
 void update() {
 	// Main N-body simulation loop
 	int step;
-	
+
 	#pragma omp parallel num_threads(num_threads) private(step)
 	for (step = 1; step <= nsteps; step++)
 	{
 		struct timespec thread_step_s, thread_step_e;
 		double thread_elapsed;
 		clock_gettime(CLOCK_MONOTONIC, &thread_step_s);
-		
-		// Loop through the bodies owned by this thread
 		int i;
-		#pragma omp for
-		for (i = 0; i < numBodies; i++/*i = first; i < first + num_owned; i++*/)
+
+		// Loop through the bodies owned by this thread
+		// Directive divides numBodies among the threads
+
+		#pragma omp for schedule(runtime) private(i)
+		for (i = 0; i < numBodies; i++)
 		{
 			double x = bodies[i].x;
 			double y = bodies[i].y;
@@ -298,14 +300,12 @@ void update() {
 			bodies_new[i].y = y;
 			bodies_new[i].vx = vx;
 			bodies_new[i].vy = vy;
-			
+
 		}
-		
-		#pragma omp barrier
-		
-		// Main thread handles sequential operations:
+
+		// Only thread handles sequential operations:
 		// Switch old and new arrays and write out frame if needed
-		if (omp_get_thread_num() == 0)
+		# pragma omp single
 		{
 			Body *tmp = bodies;
 			bodies = bodies_new;
@@ -318,9 +318,7 @@ void update() {
 			}
 			#endif
 		}
-		
-		#pragma omp barrier
-		
+
 		clock_gettime(CLOCK_MONOTONIC, &thread_step_e);
 		thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
 		thread_elapsed += (thread_step_e.tv_nsec - thread_step_s.tv_nsec) / 1000000000.0;
@@ -397,14 +395,14 @@ int main(int argc, char* argv[])
 
 	printf("\nTotal time (seconds): %f\n", elapsed_time);
 	fflush(stdout);
-	
+
 	int i;
 	for(i = 0; i < num_threads; i++)
 	{
 		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
 	}
 	fflush(stdout);
-	
+
 	free(step_time_sums);
 
 	return 0;

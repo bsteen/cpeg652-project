@@ -243,7 +243,6 @@ void update() {
 		#pragma omp parallel for num_threads(num_threads)
 		for (i = 0; i < numBodies; i++)
 		{
-			
 			double x = bodies[i].x;
 			double y = bodies[i].y;
 			double vx = bodies[i].vx;
@@ -298,7 +297,6 @@ void update() {
 			bodies_new[i].y = y;
 			bodies_new[i].vx = vx;
 			bodies_new[i].vy = vy;
-			
 		}
 		
 		// Main thread handles sequential operations:
@@ -354,6 +352,8 @@ int main(int argc, char* argv[])
 	if (argc != 4)
 	{
 		printf("Usage: nbody_omp_v1 <infilename> <outfilename> <number of threads>\n");
+		fflush(stdout);
+		exit(1);
 	}
 
 	num_threads = atoi(argv[3]);

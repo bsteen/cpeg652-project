@@ -33,7 +33,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-#include <string.h>
 
 #define MAXCOLORS 254
 #define PWIDTH 1
@@ -71,7 +70,6 @@ Body *bodies, *bodies_new;	/* two copies of main data structure: list of bodies 
 
 int num_threads = 0;
 double *step_time_sums;
-int *time_written_to;
 
 void* my_malloc(int numBytes)
 {
@@ -325,7 +323,6 @@ void update() {
 		thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
 		thread_elapsed += (thread_step_e.tv_nsec - thread_step_s.tv_nsec) / 1000000000.0;
 		step_time_sums[omp_get_thread_num()] += thread_elapsed;
-		time_written_to[omp_get_thread_num()]++;
 	}
 
 	return;
@@ -373,10 +370,15 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	step_time_sums = my_malloc(sizeof(double) * num_threads);
-	time_written_to = my_malloc(sizeof(int) * num_threads);
-	memset(time_written_to, 0, sizeof(int) * num_threads);
-
+	step_time_sums = (double*)my_malloc(sizeof(double) * num_threads);
+	
+	int i;
+	// Initialize the times to 0.0
+	for(i = 0; i < num_threads; i++)
+	{
+		step_time_sums[i] = 0.0;
+	}
+	
 	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
 
 	#ifndef NO_OUT
@@ -401,16 +403,13 @@ int main(int argc, char* argv[])
 	printf("\nTotal time (seconds): %f\n", elapsed_time);
 	fflush(stdout);
 
-	int i;
 	for(i = 0; i < num_threads; i++)
 	{
-		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
-		printf("Wrote to %d times\n", time_written_to[i]);
+		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i]);
 	}
 	fflush(stdout);
 
 	free(step_time_sums);
-	free(time_written_to);
 
 	return 0;
 }

@@ -235,7 +235,6 @@ void write_frame(int time)
  * as follows: update the position by adding the current velocity,
  * then update the velocity by adding to it the current acceleration.
  */
-
  // Pthread function must take in a single void ptr and return a void ptr
 void *update(void *arg) {
 
@@ -248,7 +247,7 @@ void *update(void *arg) {
 	struct timespec thread_step_s, thread_step_e;
 	double thread_elapsed;
 	
-	if(ID != 0)	// Thread 0 (main thread) already being timed
+	if(ID != 0)	// Thread 0 (main thread) already being timed for this step
 	{
 		clock_gettime(CLOCK_MONOTONIC, &thread_step_s);
 	}
@@ -367,7 +366,14 @@ int main(int argc, char* argv[])
 	
 	step_time_sums = (double*)my_malloc(sizeof(double) * num_threads);
 	
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
+	int i;
+	for(i = 0; i < num_threads; i++)
+	{
+		// Initialize the times to 0.0
+		step_time_sums[i] = 0.0;
+	}
+	
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start main program timer
 
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
@@ -385,7 +391,6 @@ int main(int argc, char* argv[])
 	threads = (pthread_t*)my_malloc(sizeof(pthread_t) * num_threads);
 	
 	// Create the thread IDs and each iteration space (block partitioned)
-	int i;
 	for(i = 0; i < num_threads; i++){
 		threads_ids[i] = i; 						// i is the thread index or rank
 		int first = (i * numBodies) / num_threads;	// Calculate the local starting index
@@ -451,7 +456,7 @@ int main(int argc, char* argv[])
 	
 	for(i = 0; i < num_threads; i++)
 	{
-		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
+		printf("Thread %d avg step time: %f, Total step time %f\n", i, step_time_sums[i] / (nsteps * 1.0), step_time_sums[i]);
 	}
 	fflush(stdout);
 	

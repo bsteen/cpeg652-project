@@ -302,15 +302,19 @@ void update() {
 			bodies_new[i].vy = vy;
 
 		}
+		// Implicit barrier here from the omp for loop
 
-		// Only thread handles sequential operations:
-		// Switch old and new arrays and write out frame if needed
+		// Only one thread switch old and new arrays
 		# pragma omp single
-		{
+		{	
 			Body *tmp = bodies;
-			bodies = bodies_new;
-			bodies_new = tmp;
-
+			bodies = bodies_new;		// Bodies now points to the just created data for THIS step
+			bodies_new = tmp;			// New bodies now points the now useless previous step data
+		}
+		// Implicit barrier prevents write frame before switching is done
+		
+		# pragma omp single nowait
+		{
 			#ifndef NO_OUT
 			if (step % period == 0)
 			{
@@ -318,6 +322,12 @@ void update() {
 			}
 			#endif
 		}
+		// Don't need implicit barrier because body arrays are already switched
+		// and write frame only reads from bodies and other threads that skip this
+		// with only read from bodies and write to new bodies
+		// The implicit barrier at the end of the above for-loop prevents switching
+		// of the body arrays until the thread doing the write out has caught up
+		// to the next step
 
 		clock_gettime(CLOCK_MONOTONIC, &thread_step_e);
 		thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
@@ -371,15 +381,15 @@ int main(int argc, char* argv[])
 	}
 
 	step_time_sums = (double*)my_malloc(sizeof(double) * num_threads);
-	
+
 	int i;
-	// Initialize the times to 0.0
 	for(i = 0; i < num_threads; i++)
 	{
+		// Initialize the times to 0.0
 		step_time_sums[i] = 0.0;
 	}
-	
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
+
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start main program timer
 
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
@@ -396,7 +406,7 @@ int main(int argc, char* argv[])
 
 	wrapup();
 
-	clock_gettime(CLOCK_MONOTONIC, &end_time);	// End timer
+	clock_gettime(CLOCK_MONOTONIC, &end_time);
 	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
 
@@ -405,7 +415,7 @@ int main(int argc, char* argv[])
 
 	for(i = 0; i < num_threads; i++)
 	{
-		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
+		printf("Thread %d avg step time: %f, Total step time %f\n", i, step_time_sums[i] / (nsteps * 1.0), step_time_sums[i]);
 	}
 	fflush(stdout);
 

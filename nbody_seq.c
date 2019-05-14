@@ -327,7 +327,7 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 	
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start main program timer
 	
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
@@ -372,7 +372,7 @@ int main(int argc, char* argv[])
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
 	
 	printf("\nTotal time (seconds): %f\n", elapsed_time);
-	printf("Thread 0 average step time (seconds): %f\n", step_time_sum / (nsteps * 1.0));
+	printf("Thread 0 avg step time: %f, Total step time %f\n", step_time_sum / (nsteps * 1.0), step_time_sum);
 	fflush(stdout);
 
 	return 0;

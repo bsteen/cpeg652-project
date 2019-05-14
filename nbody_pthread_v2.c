@@ -21,6 +21,7 @@
  */
 
 // nbody_pthread_v2.c: Parallel 2D n-body simulation in C with PThreads
+// Parallelize whole update loop, use barriers
 // Original program by authors listed above
 // Changes and additions done by: Benjamin Steenkamer, 2019
 // CPEG 652 Semester Project
@@ -316,14 +317,21 @@ void *update(void *arg) {
 		// Must wait until all above operations are done before switching arrays
 		pthread_barrier_wait(&barrier);
 
-		// Main thread handles sequential operations:
-		// Switch old and new arrays and write out frame if needed
+		// Main thread handles sequential operation: Switch old and new arrays
 		if (ID == 0)
 		{
 			Body *tmp = bodies;
 			bodies = bodies_new;
 			bodies_new = tmp;
-
+		}
+	
+		pthread_barrier_wait(&barrier);
+		// Must wait until thread 0 (main thread) finishes switching arrays before
+		// all threads are allowed to continue
+		
+		// Main thread handles sequential operation: write out frame if needed
+		if(ID == 0)
+		{
 			#ifndef NO_OUT
 			if (step % period == 0)
 			{
@@ -331,10 +339,8 @@ void *update(void *arg) {
 			}
 			#endif
 		}
-
-		// Must wait until thread 0 (main thread) finishes switching arrays before
-		// continuing with next loop
-		pthread_barrier_wait(&barrier);
+		// Other threads may proceed to next step since write frame and calculating 
+		// next step only require reading from the bodies array
 		
 		clock_gettime(CLOCK_MONOTONIC, &thread_step_e);
 		thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
@@ -388,8 +394,15 @@ int main(int argc, char* argv[])
 	}
 
 	step_time_sums = (double*)my_malloc(sizeof(double) * num_threads);
+	
+	int i;
+	for(i = 0; i < num_threads; i++)
+	{
+		// Initialize the times to 0.0
+		step_time_sums[i] = 0.0;
+	}
 
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); //Start main program timer
 
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
@@ -408,7 +421,6 @@ int main(int argc, char* argv[])
 	pthread_barrier_init(&barrier, NULL, num_threads);  // Initialize the barrier
 
 	// Create the thread IDs and each iteration space (block partitioned)
-	int i;
 	for(i = 0; i < num_threads; i++){
 		threads_ids[i] = i; 						// i is the thread index or rank
 		int first = (i * numBodies) / num_threads;	// Calculate the local starting index
@@ -416,8 +428,7 @@ int main(int argc, char* argv[])
 		start_idx_num_owned[(i * 2) + 1] = ((i + 1) * numBodies) / num_threads - first; // Calculate the number of bodies owned
 		// printf("id=%d, start_idx=%d, num_owned=%d\n", threads_ids[i], start_idx_num_owned[i * 2], start_idx_num_owned[(i * 2) + 1]);
 
-		// Skip over main thread (id=0) when calling pthread_create
-		// Launch other threads
+		// Skip over main thread (id=0) when calling pthread_create, launch other threads
 		if(i != 0)
 		{
 			pthread_create(threads + i, NULL, update, threads_ids + i);
@@ -448,7 +459,7 @@ int main(int argc, char* argv[])
 	
 	for(i = 0; i < num_threads; i++)
 	{
-		printf("Thread %d average step time (seconds): %f\n", i, step_time_sums[i] / (nsteps * 1.0));
+		printf("Thread %d avg step time: %f, Total step time %f\n", i, step_time_sums[i] / (nsteps * 1.0), step_time_sums[i]);
 	}
 	fflush(stdout);
 	

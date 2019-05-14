@@ -69,7 +69,7 @@ int *colors;		 		/* colors we will use */
 Body *bodies, *bodies_new;	/* two copies of main data structure: list of bodies */
 
 int num_threads = 0;
-double step_time_sum;
+double *step_time_sums;
 
 void* my_malloc(int numBytes)
 {
@@ -231,74 +231,96 @@ void write_frame(int time)
 void update() {
 	// Main N-body simulation loop
 	int step;
-	
+
 	for (step = 1; step <= nsteps; step++)
 	{
-		struct timespec thread_step_s, thread_step_e;
-		double thread_elapsed;
-		clock_gettime(CLOCK_MONOTONIC, &thread_step_s);
+		struct timespec main_step_s, main_step_e;
+		double main_thread_elapsed;
+		clock_gettime(CLOCK_MONOTONIC, &main_step_s);
 		
 		// Loop through the bodies owned by this thread
-		int i;
-		#pragma omp parallel for num_threads(num_threads)
-		for (i = 0; i < numBodies; i++)
+		
+		#pragma omp parallel num_threads(num_threads)
 		{
-			double x = bodies[i].x;
-			double y = bodies[i].y;
-			double vx = bodies[i].vx;
-			double vy = bodies[i].vy;
-			double ax = 0;
-			double ay = 0;
-			int j;
-
-			// Apply effects of all other bodies onto this current body
-			for (j = 0; j < numBodies; j++)
+			struct timespec thread_step_s, thread_step_e;
+			double thread_elapsed;
+			
+			if(omp_get_thread_num() != 0)
 			{
-				double r, mass, dx, dy, r_squared, acceleration;
+				// Main thread will already be timing before start of parallel section
+				clock_gettime(CLOCK_MONOTONIC, &thread_step_s);
+			}
+			
+			int i;
+			#pragma omp for nowait schedule(runtime) 
+			for (i = 0; i < numBodies; i++)
+			{
+				double x = bodies[i].x;
+				double y = bodies[i].y;
+				double vx = bodies[i].vx;
+				double vy = bodies[i].vy;
+				double ax = 0;
+				double ay = 0;
+				int j;
 
-				if (j == i)
+				// Apply effects of all other bodies onto this current body
+				for (j = 0; j < numBodies; j++)
 				{
-					continue;
-				}
+					double r, mass, dx, dy, r_squared, acceleration;
 
-				dx = bodies[j].x - x;
-				dy = bodies[j].y - y;
-				mass = bodies[j].mass;
-				r_squared = dx*dx + dy*dy;
-
-				if (r_squared != 0) {
-					r = sqrt(r_squared);
-					if (r != 0)
+					if (j == i)
 					{
-					  acceleration = K*mass/(r_squared);
-					  ax += acceleration*dx/r;
-					  ay += acceleration*dy/r;
+						continue;
+					}
+
+					dx = bodies[j].x - x;
+					dy = bodies[j].y - y;
+					mass = bodies[j].mass;
+					r_squared = dx*dx + dy*dy;
+
+					if (r_squared != 0) {
+						r = sqrt(r_squared);
+						if (r != 0)
+						{
+						  acceleration = K*mass/(r_squared);
+						  ax += acceleration*dx/r;
+						  ay += acceleration*dy/r;
+						}
 					}
 				}
+
+				x += vx;
+				y += vy;
+
+				if (x>=x_max || x<x_min)
+				{
+					x=x+(ceil((x_max-x)/univ_x)-1)*univ_x;
+				}
+				if (y>=y_max || y<y_min)
+				{
+					y=y+(ceil((y_max-y)/univ_y)-1)*univ_y;
+				}
+
+				vx += ax;
+				vy += ay;
+				assert(!(isnan(x) || isnan(y)));
+				assert(!(isnan(vx) || isnan(vy)));
+				bodies_new[i].x = x;
+				bodies_new[i].y = y;
+				bodies_new[i].vx = vx;
+				bodies_new[i].vy = vy;
 			}
 
-			x += vx;
-			y += vy;
-
-			if (x>=x_max || x<x_min)
+			// Master thread still has work, don't stop it's timer yet
+			if(omp_get_thread_num() != 0)
 			{
-				x=x+(ceil((x_max-x)/univ_x)-1)*univ_x;
+				clock_gettime(CLOCK_MONOTONIC, &thread_step_e);
+				thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
+				thread_elapsed += (thread_step_e.tv_nsec - thread_step_s.tv_nsec) / 1000000000.0;
+				step_time_sums[omp_get_thread_num()] += thread_elapsed;
 			}
-			if (y>=y_max || y<y_min)
-			{
-				y=y+(ceil((y_max-y)/univ_y)-1)*univ_y;
-			}
-
-			vx += ax;
-			vy += ay;
-			assert(!(isnan(x) || isnan(y)));
-			assert(!(isnan(vx) || isnan(vy)));
-			bodies_new[i].x = x;
-			bodies_new[i].y = y;
-			bodies_new[i].vx = vx;
-			bodies_new[i].vy = vy;
 		}
-		
+
 		// Main thread handles sequential operations:
 		// Switch old and new arrays and write out frame if needed
 		Body *tmp = bodies;
@@ -312,10 +334,11 @@ void update() {
 		}
 		#endif
 		
-		clock_gettime(CLOCK_MONOTONIC, &thread_step_e);
-		thread_elapsed = thread_step_e.tv_sec - thread_step_s.tv_sec;
-		thread_elapsed += (thread_step_e.tv_nsec - thread_step_s.tv_nsec) / 1000000000.0;
-		step_time_sum += thread_elapsed;
+		// Now stop master thread step time
+		clock_gettime(CLOCK_MONOTONIC, &main_step_e);	// End timer
+		main_thread_elapsed = main_step_e.tv_sec - main_step_s.tv_sec;
+		main_thread_elapsed += (main_step_e.tv_nsec - main_step_s.tv_nsec) / 1000000000.0;
+		step_time_sums[0] += main_thread_elapsed;
 	}
 
 	return;
@@ -363,7 +386,16 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start timer
+	step_time_sums = (double*)my_malloc(sizeof(double) * num_threads);
+
+	int i;
+	for(i = 0; i < num_threads; i++)
+	{
+		// Initialize the times to 0.0
+		step_time_sums[i] = 0.0;
+	}
+
+	clock_gettime(CLOCK_MONOTONIC, &begin_time); // Start main program timer
 
 	#ifndef NO_OUT
 	printf("Writing to gif: %s\n", argv[2]);
@@ -380,13 +412,20 @@ int main(int argc, char* argv[])
 
 	wrapup();
 
-	clock_gettime(CLOCK_MONOTONIC, &end_time);	// End timer
+	clock_gettime(CLOCK_MONOTONIC, &end_time);
 	elapsed_time = end_time.tv_sec - begin_time.tv_sec;
 	elapsed_time += (end_time.tv_nsec - begin_time.tv_nsec) / 1000000000.0;
 
 	printf("\nTotal time (seconds): %f\n", elapsed_time);
-	printf("Average step time (seconds): %f\n", step_time_sum / (nsteps * 1.0));
 	fflush(stdout);
+	
+	for(i = 0; i < num_threads; i++)
+	{
+		printf("Thread %d avg step time: %f, Total step time %f\n", i, step_time_sums[i] / (nsteps * 1.0), step_time_sums[i]);
+	}
+	fflush(stdout);
+
+	free(step_time_sums);
 
 	return 0;
 }

@@ -13,15 +13,18 @@ P_LIBS = -pthread
 O_LIBS = -fopenmp
 
 clean:
-	rm -f nbody_seq nbody_seq_O3
+	rm -f nbody_seq nbody_seq_O3 
 	rm -f nbody_pthread_v1 nbody_pthread_v1_O3 nbody_pthread_v2 nbody_pthread_v2_O3
 	rm -f nbody_omp_v1 nbody_omp_v1_O3 nbody_omp_v2 nbody_omp_v2_O3
-	rm -f test_maker Output/*.gif
+	rm -f test_maker timer_overhead Output/*.gif
 
 ############################## RANDOM TEST GEN #################################
 
 test_maker: test_maker.c
 	$(CC) test_maker.c -o test_maker -Wall -O3 -lm
+	
+timer_overhead: timer_overhead.c
+	$(CC) timer_overhead.c -o timer_overhead -Wall -O0 $(O_LIBS)
 
 ############################ SEQUENTIAL VERSION ################################
 

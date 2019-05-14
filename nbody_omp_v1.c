@@ -311,7 +311,7 @@ void update() {
 				bodies_new[i].vy = vy;
 			}
 
-			// Master thread still has work, don't stop it's timer yet
+			// Main thread still has work for this step, don't stop it's timer yet
 			if(omp_get_thread_num() != 0)
 			{
 				clock_gettime(CLOCK_MONOTONIC, &thread_step_e);

@@ -21,7 +21,7 @@ int randomInt(int a, int b) {
  int main(int argc, char* argv[])
  {
 	unsigned int seed = 8086;
-	int numBodies = 500;
+	int numBodies = 4000;
 	char *end;
 
 	if (argc == 2)
@@ -39,8 +39,6 @@ int randomInt(int a, int b) {
 		exit(1);
 	}
 
-	printf("seed=%d, numBodies=%d\nCreating Tests/random.txt\n", seed, numBodies);
-
 	int x_min = -1000;
 	int x_max = 3000;
 	int y_min = -600;
@@ -50,6 +48,8 @@ int randomInt(int a, int b) {
 	double K = 0.15;
 	int nsteps = 1500;
 	int period = 2;
+
+	printf("seed=%d, numBodies=%d, nsteps=%d\nCreating Tests/random.txt\n", seed, numBodies, nsteps);
 
 	srand(seed);
 	FILE *file = fopen("Tests/random.txt", "w");

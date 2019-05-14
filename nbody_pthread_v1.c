@@ -174,6 +174,8 @@ void init(char *infilename, char *outfilename)
 }
 
 /* Write one frame of the GIF for given time */
+// Note for parallel versions: gd states only one thread per image, so the write
+// frame has be to sequential
 void write_frame(int time)
 {
 	int i;

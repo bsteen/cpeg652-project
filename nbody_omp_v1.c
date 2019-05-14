@@ -167,6 +167,8 @@ void init(char *infilename, char *outfilename)
 }
 
 /* Write one frame of the GIF for given time */
+// Note for parallel versions: gd states only one thread per image, so the write
+// frame has be to sequential
 void write_frame(int time)
 {
 	int i;
@@ -252,7 +254,9 @@ void update() {
 			}
 			
 			int i;
-			#pragma omp for nowait schedule(runtime) 
+			// Don't need an implicit barrier b/c the outer parallel section around this
+			// will have one
+			#pragma omp for nowait schedule(runtime)
 			for (i = 0; i < numBodies; i++)
 			{
 				double x = bodies[i].x;

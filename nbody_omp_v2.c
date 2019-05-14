@@ -167,6 +167,8 @@ void init(char *infilename, char *outfilename)
 }
 
 /* Write one frame of the GIF for given time */
+// Note for parallel versions: gd states only one thread per image, so the write
+// frame has be to sequential
 void write_frame(int time)
 {
 	int i;
@@ -243,7 +245,7 @@ void update() {
 		// Loop through the bodies owned by this thread
 		// Directive divides numBodies among the threads
 
-		#pragma omp for schedule(runtime) private(i)
+		#pragma omp for schedule(runtime)
 		for (i = 0; i < numBodies; i++)
 		{
 			double x = bodies[i].x;
@@ -324,7 +326,7 @@ void update() {
 		}
 		// Don't need implicit barrier because body arrays are already switched
 		// and write frame only reads from bodies and other threads that skip this
-		// with only read from bodies and write to new bodies
+		// with only read from bodies and write to bodies_new
 		// The implicit barrier at the end of the above for-loop prevents switching
 		// of the body arrays until the thread doing the write out has caught up
 		// to the next step

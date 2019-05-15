@@ -12,12 +12,6 @@ LIBS = -lgd -lm
 P_LIBS = -pthread
 O_LIBS = -fopenmp
 
-clean:
-	rm -f nbody_seq nbody_seq_O3 
-	rm -f nbody_pthread_v1 nbody_pthread_v1_O3 nbody_pthread_v2 nbody_pthread_v2_O3
-	rm -f nbody_omp_v1 nbody_omp_v1_O3 nbody_omp_v2 nbody_omp_v2_O3
-	rm -f test_maker timer_overhead Output/*.gif
-
 ############################## RANDOM TEST GEN #################################
 
 test_maker: test_maker.c
@@ -95,7 +89,7 @@ nbody_omp_v1_no_out: nbody_omp_v1.c
 nbody_omp_v1_O3: nbody_omp_v1.c
 	$(CC) nbody_omp.c -o nbody_omp_O3 -Wall -O3 $(LIBS) $(O_LIBS)
 
-nbody_omp_v1_O3_no_out: nbody_omp.c
+nbody_omp_v1_O3_no_out: nbody_omp_v1.c
 	$(CC) nbody_omp_v1.c -o nbody_omp_v1_O3 -DNO_OUT -Wall -O3 $(LIBS) $(O_LIBS)
 
 # ./nbody_omp_v1_O3 Tests/random.txt Output/nbody_omp_v1_O3.gif
@@ -116,3 +110,10 @@ nbody_omp_v2_O3_no_out: nbody_omp_v2.c
 	$(CC) nbody_omp_v2.c -o nbody_omp_v2_O3 -DNO_OUT -Wall -O3 $(LIBS) $(O_LIBS)
 	
 # ./nbody_omp_v2_O3 Tests/random.txt Output/nbody_omp_v2.gif
+
+############################# MAKE CLEAN #######################################
+clean:
+	rm -f nbody_seq nbody_seq_O3 
+	rm -f nbody_pthread_v1 nbody_pthread_v1_O3 nbody_pthread_v2 nbody_pthread_v2_O3
+	rm -f nbody_omp_v1 nbody_omp_v1_O3 nbody_omp_v2 nbody_omp_v2_O3
+	rm -f test_maker timer_overhead Output/*.gif

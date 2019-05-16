@@ -256,7 +256,7 @@ void update() {
 			int i;
 			// Don't need an implicit barrier b/c the outer parallel section around this
 			// will have one
-			#pragma omp for nowait schedule(runtime)
+			#pragma omp for nowait schedule(auto)
 			for (i = 0; i < numBodies; i++)
 			{
 				double x = bodies[i].x;

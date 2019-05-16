@@ -147,6 +147,8 @@ void init(char *infilename, char *outfilename)
 		fscanf(infile, "%lf", &bodies[i].vy);
 	}
 
+	// Combining this loop with the above loop didn't make a significant difference in 
+	// execution time. Leaving them as they are
 	for (i=0; i<numBodies; i++)
 	{
 		bodies_new[i].mass = bodies[i].mass;

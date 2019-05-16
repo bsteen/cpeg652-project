@@ -245,7 +245,7 @@ void update() {
 		// Loop through the bodies owned by this thread
 		// Directive divides numBodies among the threads
 
-		#pragma omp for schedule(runtime)
+		#pragma omp for schedule(auto)
 		for (i = 0; i < numBodies; i++)
 		{
 			double x = bodies[i].x;
